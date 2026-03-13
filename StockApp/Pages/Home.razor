@@ -1,5 +1,9 @@
 ﻿@page "/"
-
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IHttpClientFactory factory
+@attribute [Authorize]
 <PageTitle>Home</PageTitle>
 
 <h1>Hello, world!@Number</h1>
@@ -8,9 +12,13 @@ Welcome to your new app.
 
 @code{
     private int Number = 1;
-
-    protected override void OnInitialized()
+    private string UserName;
+    protected override async Task OnInitializedAsync()
     {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        UserName = state.User.Identity.Name;
         Number = 2;
+        var client = factory.CreateClient("Api");
+        var res = await client.GetStringAsync("api/stock/hello");
     }
 }
