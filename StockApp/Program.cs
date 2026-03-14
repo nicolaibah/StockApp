@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using StockApp;
+using StockApp.Infrastructure;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -19,17 +20,11 @@ builder.Services.AddOidcAuthentication(options =>
     options.ProviderOptions.DefaultScopes.Add("profile");
     options.ProviderOptions.DefaultScopes.Add("email");
 });
-
+builder.Services.AddScoped<IdTokenProvider>();
+builder.Services.AddTransient<AuthorizationHeaderHandler>();
 builder.Services.AddHttpClient("Api", client =>
     client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"]))
-    .AddHttpMessageHandler(sp =>
-    {
-        var handler = sp.GetRequiredService<AuthorizationMessageHandler>()
-            .ConfigureHandler(
-                authorizedUrls: new[] { builder.Configuration["ApiBaseUrl"] }, 
-                scopes: new[] { "openid", "profile", "email" });
-        return handler;
-    });
+    .AddHttpMessageHandler<AuthorizationHeaderHandler>();
 
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("Api"));
