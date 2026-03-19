@@ -1,0 +1,73 @@
+﻿@using System.ComponentModel.DataAnnotations
+@using StockApp.Models
+@using StockApp.Services
+@inject NavigationManager Navigation
+@inject IGameService _gameService
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Opret Ny Aktiedyst</h5>
+    </div>
+    <div class="card-body">
+        <EditForm Model="@newGame" OnValidSubmit="async ()=> await HandleValidSubmit()">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger small" />
+
+            <div class="mb-3">
+                <label for="name" class="form-label font-weight-bold">Navn på dysten</label>
+                <InputText id="name" @bind-Value="newGame.Name" class="form-control" placeholder="f.eks. Sommer-invest 2026" />
+                <ValidationMessage For="@(() => newGame.Name)" class="text-danger" />
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="startDate" class="form-label font-weight-bold">Startdato</label>
+                    <InputDate id="startDate" @bind-Value="newGame.StartDate" class="form-control" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="endDate" class="form-label font-weight-bold">Slutdato</label>
+                    <InputDate id="endDate" @bind-Value="newGame.EndDate" class="form-control" />
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="capital" class="form-label font-weight-bold">Startkapital (DKK)</label>
+                <div class="input-group">
+                    <span class="input-group-text">kr.</span>
+                    <InputNumber id="capital" @bind-Value="newGame.StartCapital" class="form-control" />
+                </div>
+                <div class="form-text">Hvor mange fiktive penge starter hver deltager med?</div>
+                <ValidationMessage For="@(() => newGame.StartCapital)" class="text-danger" />
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-light" @onclick="Cancel">Annuller</button>
+                <button type="submit" class="btn btn-success px-4">Opret Spil</button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private GameViewModel newGame = new();
+
+    protected override void OnInitialized()
+    {
+        // Default værdier for en ny dyst
+        newGame.StartDate = DateTime.Today;
+        newGame.EndDate = DateTime.Today.AddYears(1);
+        newGame.StartCapital = 10_000;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        Console.WriteLine($"Opretter spil: {newGame.Name} med {newGame.StartCapital} kr.");
+        await _gameService.CreateGame(newGame);
+
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

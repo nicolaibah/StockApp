@@ -1,0 +1,107 @@
+﻿@using MudBlazor
+@using StockApp.Models
+@using StockApp.Services
+@using StockTrackingApi.Models.StockModels
+@inject IGameService _gameService
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(IsBuy? Icons.Material.Filled.AddShoppingCart : Icons.Material.Filled.Sell)" Class="mr-3 mb-n1" />
+            @(IsBuy ? "Køb" : "Sælg") Transaktion
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudGrid Spacing="2">
+                @* Ticker Symbol *@
+                <MudItem xs="12" sm="6">
+                    <MudAutocomplete ShowProgressIndicator="true" T="YahooQuoteResult" SearchFunc="_gameService.SearchStocks" Disabled="!IsBuy" @bind-Value="SelectedStock" ToStringFunc="x => x?.Symbol" DebounceInterval="300" Label="Ticker" Variant="Variant.Outlined" Required="true" RequiredError="Ticker is required!" Placeholder="e.g. MSFT" />
+                </MudItem>
+
+                @* Date Picker *@
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="Købsdato" @bind-Date="NullableDate" Variant="Variant.Outlined" Required="true" />
+                </MudItem>
+
+                @* Amount / Quantity *@
+                <MudItem xs="12" sm="6">
+                    <MudNumericField @bind-Value="Amount" Label="Antal" Variant="Variant.Outlined" Min="0.0001" Required="true" />
+                </MudItem>
+
+                @* Price Per Unit *@
+                <MudItem xs="12" sm="6">
+                    <MudNumericField @bind-Value="TotalPrice" Label="Samlet pris i dkk" Variant="Variant.Outlined" Min="0.01" Adornment="Adornment.End" AdornmentText="kr." HideSpinButtons="true" Required="true" />
+                </MudItem>
+
+                @* Read-only Total Calculation *@
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Info" NoIcon="true" Dense="true" Class="mt-2">
+                        <strong>Stk pris: </strong> @((TotalPrice / Amount).ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("da-DK")))
+                    </MudAlert>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Tilbage</MudButton>
+        <MudButton Color="@(IsBuy? Color.Primary: Color.Error)" Variant="Variant.Filled" OnClick="Submit">Bekræft @(IsBuy ? "Køb" : "Salg")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public double Amount { get; set; }
+    [Parameter] public double TotalPrice { get; set; }
+    [Parameter] public DateTime Date { get; set; } = DateTime.Now;
+    [Parameter] public string? Ticker { get; set; }
+    [Parameter] public string GameId { get; set; } = string.Empty;
+    private YahooQuoteResult SelectedStock { get; set; }
+    private bool IsBuy { get; set; } = true;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(Ticker))
+        {
+            IsBuy = false;
+
+        }
+    }
+
+    private MudForm form;
+
+    private DateTime? NullableDate
+    {
+        get => Date;
+        set => Date = value ?? DateTime.Now;
+    }
+
+    private async Task Submit()
+    {
+        TransactionViewModel transactionViewModel = new()
+        {
+            Amount = Amount,
+            Date = Date,
+            IsBuy = IsBuy,
+            PricePerUnit = TotalPrice / Amount,
+            Ticker = GetTicker()
+        };
+
+        if (form.IsValid)
+        {
+            var success = await _gameService.AddTransaction(transactionViewModel, GameId);
+            if (success)
+            {
+                MudDialog.Close(DialogResult.Ok(transactionViewModel));
+
+            }
+        }
+    }
+    private string GetTicker()
+    {
+        return !string.IsNullOrEmpty(Ticker) ? Ticker : SelectedStock.Symbol;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

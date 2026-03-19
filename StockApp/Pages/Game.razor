@@ -1,0 +1,149 @@
+﻿@using ApexCharts
+@using MudBlazor
+@using StockApp.Models
+@using StockApp.Services
+@using StockTrackingApi.Models.StockModels
+@inject IGameService _gameService
+@inject IDialogService _dialogService
+@inject PresentationService _presentation
+
+<MudPaper>
+    <MudGrid>
+        <MudItem xs="12"><MudText Typo="Typo.h2">Performance</MudText></MudItem>
+        <MudItem xs="3"><MudText>KontantBeholdning: @CurrentPlayer.Capital kr</MudText></MudItem>
+        <MudItem xs="3"><MudText>Værdi: 2000 kr</MudText></MudItem>
+        <MudItem xs="3"><MudText>Today: 210 kr</MudText></MudItem>
+        <MudItem xs="3"><MudText>Past month: 1000 kr</MudText></MudItem>
+    </MudGrid>
+
+</MudPaper>
+@if (HasLoaded)
+{
+
+    <ApexChart @ref="_chart" TItem="ValuePoint"
+               Title="Portefølje Værdi (DKK)"
+               Options="chartOptions">
+
+        <ApexPointSeries TItem="ValuePoint"
+                         Items="PlayerData"
+                         Name="Dig (Portefølje)"
+                         SeriesType="SeriesType.Area"
+                         XValue="@(e => e.Date)"
+                         YValue="@(e => e.Value)" />
+    </ApexChart>
+}
+
+<MudPaper>
+    <MudTable Items="CurrentPlayer.Stocks">
+        <ToolBarContent>
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="async () => await AddTransaction()" />
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Ticker</MudTh>
+            <MudTh>Antal</MudTh>
+            <MudTh>Værdi</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Ticker</MudTd>
+            <MudTd>@context.Amount</MudTd>
+            <MudTd>@($"{context.ValueInTargetCurrency:N2} {targetCurrency}")</MudTd>
+            <MudTd><MudIconButton Icon="@Icons.Material.Filled.Sell" OnClick="async () => await AddTransaction(context)" /></MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public GameViewModel Value { get; set; }
+    [Parameter, EditorRequired] public string Email { get; set; }
+    private ApexChart<ValuePoint> _chart = new();
+    private List<ValuePoint> PlayerData = new();
+    private string targetCurrency = "DKK";
+    private List<ValuePoint> ModstanderData = new();
+    private ApexChartOptions<ValuePoint> chartOptions = new();
+    private decimal KontantBeholdning = 25000;
+    private decimal TotalVaerdi = 145000;
+    private List<AktieBeholdning> MineAktier = new();
+    private List<ParticipantViewModel> Players = [];
+    private ParticipantViewModel CurrentPlayer = new();
+    private bool HasLoaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Players = await _gameService.GetPlayers(Value.Id);
+        CurrentPlayer = Players.First(x => x.Email == Email);
+        SetupChartOptions();
+        await SetUpValues();
+        await LoadHistoricalData();
+        HasLoaded = true;
+    }
+
+
+    private async Task SetUpValues()
+    {
+        foreach (var stock in Players.SelectMany(x => x.Stocks))
+        {
+            stock.ValueInTargetCurrency = await _presentation.GetValueInTargetCurrency(stock);
+        }
+    }
+
+    private void SetupChartOptions()
+    {
+        chartOptions = new ApexChartOptions<ValuePoint>
+        {
+            Chart = new Chart
+            {
+                Toolbar = new Toolbar { Show = false },
+                Animations = new Animations { Enabled = true }
+            },
+            Stroke = new Stroke { Curve = Curve.Smooth, Width = 3 },
+            Colors = new List<string> { "#007bff" },
+            Xaxis = new XAxis { Type = XAxisType.Datetime },
+            Yaxis = new List<YAxis> {
+            new YAxis {
+                Labels = new YAxisLabels {
+                    // This JS snippet formats to 2 decimals with Danish grouping (dot/comma)
+                    Formatter = @"value => value.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' kr'"
+                }
+            }
+        }
+        };
+    }
+    private async Task AddTransaction(StockViewModel? sellStock = null)
+    {
+        if (sellStock is not null)
+        {
+
+        }
+        DialogParameters dialParams = new()
+        {
+             { "GameId", Value.Id },
+             { "Ticker", sellStock?.Ticker }
+        };
+        var dial = await _dialogService.ShowAsync<Dialogs.TransactionDialog>("Transaction", dialParams);
+        var res = await dial.Result;
+        if (!res.Canceled && res.Data is TransactionViewModel transaction)
+        {
+            CurrentPlayer.Transactions.Add(transaction);
+        }
+        ;
+    }
+
+    private async Task LoadHistoricalData()
+    {
+        PlayerData = await _presentation.GetPortfolioHistory(CurrentPlayer.Stocks, targetCurrency, (decimal)CurrentPlayer.Capital);
+
+    }
+
+    public class ValuePoint
+    {
+        public DateTime Date { get; set; }
+        public decimal Value { get; set; }
+    }
+    public class AktieBeholdning
+    {
+        public string Ticker { get; set; } = "";
+        public int Antal { get; set; }
+        public decimal AktuelKurs { get; set; }
+    }
+}

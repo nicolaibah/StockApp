@@ -1,27 +1,52 @@
 ﻿@page "/"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject IHttpClientFactory factory
+@using MudBlazor
+@using StockApp.Models
+@using StockApp.Services
+@using System.Security.Claims
+@inject IGameService _gameService
+
+@inject AuthenticationStateProvider provider
 @attribute [Authorize]
-<PageTitle>Home</PageTitle>
 
-<h1>Hello, world!@Number</h1>
+<PageTitle>🚀 Aktiedysten</PageTitle>
 
-Welcome to your new app.
+<MudSelect @bind-Value="SelectedGame" ToStringFunc="x => x?.Name">
+    @foreach (var game in playersGames)
+    {
+        <MudSelectItem Value="game" />
+    }
+</MudSelect>
 
-@code{
-    private int Number = 1;
-    private string UserName;
+@if (SelectedGame is not null)
+{
+    <Game Value="SelectedGame" Email="@email" />
+}
+
+@code {
+    List<GameViewModel> playersGames = [];
+    private GameViewModel? SelectedGame;
+    private string email { get; set; }
     protected override async Task OnInitializedAsync()
     {
-        Number = 2;
-        var client = factory.CreateClient("Api");
-        var res = await client.GetStringAsync("api/stock/hello");
+        var state = await provider.GetAuthenticationStateAsync();
+        email = state.User.Claims.First(x => x.Type == "email").Value;
+        playersGames = await _gameService.GetPlayerGames();
+        var runningGames = GetRunningGames(playersGames);
+        if (runningGames.Count() == 1)
+        {
+            SelectedGame = runningGames.First();
+        }
     }
 
-    // private string idToken()
-    // {
-    //     return "eyJhbGciOiJSUzI1NiIsImtpZCI6IjUzMDcyNGQ0OTE3M2EzZWQ2YjRhMDBhYTYzNDQyMDMwMGQ3MmFlNWIiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI4NDg5NzY5NTY4MDgtdjk0bDVrNWxybnA5MTFpM2JwN2F2MTVjdHZ2YWllMGkuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI4NDg5NzY5NTY4MDgtdjk0bDVrNWxybnA5MTFpM2JwN2F2MTVjdHZ2YWllMGkuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMDM0OTMyNzc5MjI0MTkzODA5MjIiLCJlbWFpbCI6Im5pY29sYWliYWhAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImF0X2hhc2giOiI2eXE1WlJ1X0pSLVM4UHNfSnNSQm1nIiwibm9uY2UiOiJkMWVkNjNjZWJmMjI0NzUzYjM0OTRjYmNiNTI5MzcxNSIsIm5iZiI6MTc3MzQ3NTQ5MywibmFtZSI6Im5pY29sYWkgYmFoIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0loUU5ZWG5rcWx6cmNUczk1VjVCc05CRVlCOGtDUEEtWlFrRkZUa2JFRlV3V3dsUT1zOTYtYyIsImdpdmVuX25hbWUiOiJuaWNvbGFpIiwiZmFtaWx5X25hbWUiOiJiYWgiLCJpYXQiOjE3NzM0NzU3OTMsImV4cCI6MTc3MzQ3OTM5MywianRpIjoiMWYyNTY1NjY3MjZhMmRmOWQwMGNhYmY4MDI1M2QzNmVkMWVmODhjMiJ9.AS5qYeXWbaHNen1UuosLouBDyFSXnr4uiF5pPd4oRoz86TcshmpH6JUuHWCT9CfycHLsLUu_3n72hk7xpmGkUP21UetJ1aPSmKi611Nej-ITkdAEqtJdDS1ZJuCX1NjNjlSkuJMmTyrZTOY6wOhsY1iNqC8xEEGAyUcBN0muw3h3DiC_sm-Z2Fk0-QMagvTNsJ9jBWeyO6gPp-fMl7CHHzf0gdxoPevFWpFoAKqXrrWExZw5ByBsrZUxdRjoWDTn6LRDtYBsANMR0ZFP9y5bnB02i_rK5GiAezvYJ_AylhqePs62u0-MEZWk9nwspT0DkCTalyLQgAgHqC7rU9QB8Q";
-    // }
+
+    private IEnumerable<GameViewModel> GetRunningGames(List<GameViewModel> playersGames)
+    {
+        return playersGames.Where(x => x.EndDate > DateTime.Now);
+    }
 }
+
+
+
+

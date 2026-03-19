@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using MudBlazor.Services;
 using StockApp;
 using StockApp.Infrastructure;
+using StockApp.Services;
+using StockTrackingApi.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -25,8 +28,11 @@ builder.Services.AddTransient<AuthorizationHeaderHandler>();
 builder.Services.AddHttpClient("Api", client =>
     client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"]))
     .AddHttpMessageHandler<AuthorizationHeaderHandler>();
-
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("Api"));
+builder.Services.AddTransient<IGameService, GameService>();
+builder.Services.AddTransient<PresentationService>();
+builder.Services.AddTransient<IExchangeRateService, ExchangeRateService>();
+builder.Services.AddMudServices();
 
 await builder.Build().RunAsync();
