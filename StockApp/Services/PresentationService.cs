@@ -30,45 +30,93 @@ public class PresentationService
         }
         return finalValue;
     }
-    public async Task<List<ValuePoint>> GetPortfolioHistory(IEnumerable<StockViewModel> stocks, string targetCurrency = "DKK")
+    public async Task<List<ValuePoint>> GetValueForDateTimes(List<DateTime> dates, string targetCurrency = "DKK", decimal initialCash = 0, IEnumerable<TransactionViewModel>? transactions = null)
     {
-        var allPoints = new List<ValuePoint>();
+        var result = new List<ValuePoint>();
+        var transactionList = transactions?.ToList() ?? new List<TransactionViewModel>();
 
-        foreach (var stock in stocks)
+        // Get all unique tickers from transactions
+        var tickers = transactionList.Select(t => t.Ticker).Distinct().ToList();
+
+        // Cache history and quotes for all stocks to avoid repeated calls
+        var stockHistoryCache = new Dictionary<string, List<ValuePoint>>();
+        var stockExchangeRateCache = new Dictionary<string, decimal>();
+
+        foreach (var ticker in tickers)
         {
-            // 1. Get Currency info
-            Quote q = await _gameService.GetQuote(stock.Ticker);
+            var history = await _gameService.GetHistory(ticker, dates.Min());
+            stockHistoryCache[ticker] = history;
+            var quote = await _gameService.GetQuote(ticker);
+            var exchangeRate = await GetExchangeRateIfNeeded(quote.Currency, targetCurrency);
+            stockExchangeRateCache[ticker] = exchangeRate;
+        }
 
-            // 2. Get Historical Prices (Native Currency)
-            var history = await _gameService.GetHistory(stock.Ticker);
+        foreach (var date in dates)
+        {
+            decimal portfolioValue = 0;
 
-            // 3. Get Exchange Rate
-            decimal rate = 1;
-            if (q.Currency != targetCurrency)
+            // Calculate holdings for each stock at this date from transactions
+            var holdingsByTicker = new Dictionary<string, decimal>();
+            foreach (var transaction in transactionList.Where(t => t.Date.Date <= date.Date))
             {
-                rate = await _exchangeService.ExchangeRate(q.Currency, targetCurrency);
+                if (!holdingsByTicker.ContainsKey(transaction.Ticker))
+                    holdingsByTicker[transaction.Ticker] = 0;
+
+                decimal amount = transaction.IsBuy ? (decimal)transaction.Amount : -(decimal)transaction.Amount;
+                holdingsByTicker[transaction.Ticker] += amount;
             }
 
-            // 4. Convert and add to flat list
-            foreach (var vp in history)
+            // Calculate stock values for this date using holdings and cached data
+            foreach (var (ticker, amount) in holdingsByTicker)
             {
-                allPoints.Add(new ValuePoint
+                if (amount > 0) // Only value if we own shares
                 {
-                    Date = vp.Date,
-                    Value = (vp.Value * rate) * stock.Amount
-                });
+                    var history = stockHistoryCache[ticker];
+                    var exchangeRate = stockExchangeRateCache[ticker];
+
+                    var valuePoint = history.FirstOrDefault(h => h.Date.Date == date.Date);
+                    if (valuePoint != null)
+                    {
+                        portfolioValue += (valuePoint.Value * exchangeRate) * amount;
+                    }
+                }
+            }
+
+            // Calculate remaining cash at this date
+            decimal remainingCash = CalculateRemainingCash(date, initialCash, transactionList, stockExchangeRateCache);
+            portfolioValue += remainingCash;
+
+            result.Add(new ValuePoint { Date = date, Value = portfolioValue });
+        }
+
+        return result;
+    }
+
+    private async Task<decimal> GetExchangeRateIfNeeded(string fromCurrency, string targetCurrency)
+    {
+        if (fromCurrency == targetCurrency)
+            return 1;
+
+        return await _exchangeService.ExchangeRate(fromCurrency, targetCurrency);
+    }
+    private decimal CalculateRemainingCash(DateTime date, decimal initialCash, List<TransactionViewModel> transactions, Dictionary<string, decimal> exchangeRateCache)
+    {
+        decimal cashSpent = 0;
+
+        foreach (var transaction in transactions.Where(t => t.Date.Date <= date.Date))
+        {
+            decimal transactionAmount = (decimal)(transaction.Amount * transaction.PricePerUnit);
+
+            if (transaction.IsBuy)
+            {
+                cashSpent += transactionAmount;
+            }
+            else
+            {
+                cashSpent -= transactionAmount;
             }
         }
 
-        // 5. Group by Date and Sum to create the single portfolio line
-        return allPoints
-            .GroupBy(p => p.Date.Date)
-            .Select(g => new ValuePoint
-            {
-                Date = g.Key,
-                Value = g.Sum(p => p.Value)
-            })
-            .OrderBy(p => p.Date)
-            .ToList();
+        return initialCash - cashSpent;
     }
 }

@@ -15,7 +15,7 @@
             <MudGrid Spacing="2">
                 @* Ticker Symbol *@
                 <MudItem xs="12" sm="6">
-                    <MudAutocomplete ShowProgressIndicator="true" T="YahooQuoteResult" SearchFunc="_gameService.SearchStocks" Disabled="!IsBuy" @bind-Value="SelectedStock" ToStringFunc="x => x?.Symbol" DebounceInterval="300" Label="Ticker" Variant="Variant.Outlined" Required="true" RequiredError="Ticker is required!" Placeholder="e.g. MSFT" />
+                    <MudAutocomplete ShowProgressIndicator="true" T="YahooQuoteResult" SearchFunc="_gameService.SearchStocks" Disabled="!IsBuy" @bind-Value="SelectedStock" ToStringFunc="AutoCompleteToString" DebounceInterval="300" Label="Ticker" Variant="Variant.Outlined" Required="true" RequiredError="Ticker is required!" Placeholder="e.g. MSFT" />
                 </MudItem>
 
                 @* Date Picker *@
@@ -102,6 +102,9 @@
     {
         return !string.IsNullOrEmpty(Ticker) ? Ticker : SelectedStock.Symbol;
     }
-
+    private string AutoCompleteToString(YahooQuoteResult? result)
+    {
+        return result is null ? "" : $"{result.LongName} ({result.Symbol})";
+    }
     private void Cancel() => MudDialog.Cancel();
 }

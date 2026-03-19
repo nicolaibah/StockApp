@@ -60,9 +60,11 @@ public class GameService : IGameService
     {
         return await _client.GetFromJsonAsync<Quote>($"api/stock/quote?ticker={ticker}");
     }
-    public async Task<List<ValuePoint>> GetHistory(string ticker)
+    public async Task<List<ValuePoint>> GetHistory(string ticker, DateTime fromDate)
     {
-        var res = await _client.GetFromJsonAsync<List<ValuePoint>>($"api/stock/quote/history?ticker={ticker}");
-        return res;
+        
+            var res = await _client.GetFromJsonAsync<List<ValuePoint>>($"api/stock/quote/history?ticker={ticker}&fromDate={fromDate.Ticks}");
+            return res ?? new List<ValuePoint>();
+      
     }
 }

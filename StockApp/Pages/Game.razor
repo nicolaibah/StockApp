@@ -19,6 +19,25 @@
 </MudPaper>
 @if (HasLoaded)
 {
+    <MudPaper Class="pa-4">
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="@(SelectedTimeRange == "1d" ? Variant.Filled : Variant.Outlined)" 
+                       Color="MudBlazor.Color.Primary" 
+                       OnClick="@(async () => await SelectTimeRange("1d"))">1 dag</MudButton>
+            <MudButton Variant="@(SelectedTimeRange == "5d" ? Variant.Filled : Variant.Outlined)" 
+                       Color="MudBlazor.Color.Primary" 
+                       OnClick="@(async () => await SelectTimeRange("5d"))">5 dage</MudButton>
+            <MudButton Variant="@(SelectedTimeRange == "1m" ? Variant.Filled : Variant.Outlined)" 
+                       Color="MudBlazor.Color.Primary" 
+                       OnClick="@(async () => await SelectTimeRange("1m"))">1 måned</MudButton>
+            <MudButton Variant="@(SelectedTimeRange == "3m" ? Variant.Filled : Variant.Outlined)" 
+                       Color="MudBlazor.Color.Primary" 
+                       OnClick="@(async () => await SelectTimeRange("3m"))">3 måneder</MudButton>
+            <MudButton Variant="@(SelectedTimeRange == "1y" ? Variant.Filled : Variant.Outlined)" 
+                       Color="MudBlazor.Color.Primary" 
+                       OnClick="@(async () => await SelectTimeRange("1y"))">1 år</MudButton>
+        </MudStack>
+    </MudPaper>
 
     <ApexChart @ref="_chart" TItem="ValuePoint"
                Title="Portefølje Værdi (DKK)"
@@ -61,12 +80,11 @@
     private string targetCurrency = "DKK";
     private List<ValuePoint> ModstanderData = new();
     private ApexChartOptions<ValuePoint> chartOptions = new();
-    private decimal KontantBeholdning = 25000;
-    private decimal TotalVaerdi = 145000;
     private List<AktieBeholdning> MineAktier = new();
     private List<ParticipantViewModel> Players = [];
     private ParticipantViewModel CurrentPlayer = new();
     private bool HasLoaded;
+    private string SelectedTimeRange = "5d";
 
     protected override async Task OnInitializedAsync()
     {
@@ -129,10 +147,43 @@
         ;
     }
 
+    private async Task SelectTimeRange(string timeRange)
+    {
+        SelectedTimeRange = timeRange;
+        StateHasChanged();
+        await LoadHistoricalData();
+    }
+
     private async Task LoadHistoricalData()
     {
-        PlayerData = await _presentation.GetPortfolioHistory(CurrentPlayer.Stocks, targetCurrency, (decimal)CurrentPlayer.Capital);
+        List<DateTime> dates = GenerateDateRangeForTimespan(SelectedTimeRange);
+        PlayerData = await _presentation.GetValueForDateTimes(dates, targetCurrency, (decimal)Value.StartCapital, CurrentPlayer.Transactions);
+        StateHasChanged();
+        if(_chart is not null)
+        {
+            await _chart.UpdateSeriesAsync();
+        }
+    }
 
+    private List<DateTime> GenerateDateRangeForTimespan(string timeRange)
+    {
+        List<DateTime> dates = new();
+        int daysBack = timeRange switch
+        {
+            "1d" => 1,
+            "5d" => 5,
+            "1m" => 30,
+            "3m" => 90,
+            "1y" => 365,
+            _ => 5
+        };
+
+        for (int i = 0; i <= daysBack; i++)
+        {
+            dates.Add(DateTime.Now.AddDays(-i));
+        }
+
+        return dates.OrderBy(d => d).ToList();
     }
 
     public class ValuePoint

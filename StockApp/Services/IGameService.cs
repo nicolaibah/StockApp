@@ -14,5 +14,5 @@ public interface IGameService
     Task<IEnumerable<YahooQuoteResult>> SearchStocks(string search, CancellationToken ct);
     Task<bool> AddTransaction(TransactionViewModel transaction, string gameId);
     Task<Quote> GetQuote(string ticker);
-    Task<List<ValuePoint>> GetHistory(string ticker);
+    Task<List<ValuePoint>> GetHistory(string ticker, DateTime fromDate);
 }
