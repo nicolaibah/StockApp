@@ -7,15 +7,38 @@
 @inject IDialogService _dialogService
 @inject PresentationService _presentation
 
-<MudPaper>
-    <MudGrid>
-        <MudItem xs="12"><MudText Typo="Typo.h2">Performance</MudText></MudItem>
-        <MudItem xs="3"><MudText>KontantBeholdning: @CurrentPlayer.Capital kr</MudText></MudItem>
-        <MudItem xs="3"><MudText>Værdi: 2000 kr</MudText></MudItem>
-        <MudItem xs="3"><MudText>Today: 210 kr</MudText></MudItem>
-        <MudItem xs="3"><MudText>Past month: 1000 kr</MudText></MudItem>
-    </MudGrid>
-
+<MudPaper Class="pa-4" style="margin-top: 20px;">
+    <MudText Typo="Typo.h3" style="margin-bottom: 16px;">Scoreboard</MudText>
+    <MudTable Items="@GetPlayersByTotalValue()" Hover="true" Dense="false">
+        <HeaderContent>
+            <MudTh>Rank</MudTh>
+            <MudTh>Player</MudTh>
+            <MudTh>Total Value</MudTh>
+            <MudTh>Cash</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+                <MudTd>@(GetPlayersByTotalValue().IndexOf(context) + 1)</MudTd>
+                <MudTd>
+                    @if (context.Email == Email)
+                    {
+                        <MudStack Row="true" Spacing="1">
+                            <MudText>@context.Name</MudText>
+                            <MudChip Size="MudBlazor.Size.Small" T="string">You</MudChip>
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudText>@context.Name</MudText>
+                    }
+                </MudTd>
+                <MudTd >
+                    <MudText>@($"{GetPlayerTotalValue(context):N2} kr")</MudText>
+                </MudTd>
+                <MudTd>
+                    <MudText>@($"{context.Capital:N2} kr")</MudText>
+                </MudTd>
+        </RowTemplate>
+    </MudTable>
 </MudPaper>
 @if (HasLoaded)
 {
@@ -43,16 +66,21 @@
                Title="Portefølje Værdi (DKK)"
                Options="chartOptions">
 
-        <ApexPointSeries TItem="ValuePoint"
-                         Items="PlayerData"
-                         Name="Dig (Portefølje)"
-                         SeriesType="SeriesType.Area"
-                         XValue="@(e => e.Date)"
-                         YValue="@(e => e.Value)" />
+        @foreach (var player in Players.OrderByDescending(p => p.Email == Email))
+        {
+            <ApexPointSeries TItem="ValuePoint"
+                             Items="player.ValuePoints"
+                             Name="@(player.Email == Email ? "Dig (Portefølje)" : player.Email)"
+                             SeriesType="SeriesType.Area"
+                             XValue="@(e => e.Date)"
+                             YValue="@(e => e.Value)" />
+        }
     </ApexChart>
 }
 
-<MudPaper>
+
+
+<MudPaper Class="pa-4" style="margin-top: 20px;">
     <MudTable Items="CurrentPlayer.Stocks">
         <ToolBarContent>
             <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="async () => await AddTransaction()" />
@@ -76,11 +104,8 @@
     [Parameter, EditorRequired] public GameViewModel Value { get; set; }
     [Parameter, EditorRequired] public string Email { get; set; }
     private ApexChart<ValuePoint> _chart = new();
-    private List<ValuePoint> PlayerData = new();
     private string targetCurrency = "DKK";
-    private List<ValuePoint> ModstanderData = new();
     private ApexChartOptions<ValuePoint> chartOptions = new();
-    private List<AktieBeholdning> MineAktier = new();
     private List<ParticipantViewModel> Players = [];
     private ParticipantViewModel CurrentPlayer = new();
     private bool HasLoaded;
@@ -90,9 +115,11 @@
     {
         Players = await _gameService.GetPlayers(Value.Id);
         CurrentPlayer = Players.First(x => x.Email == Email);
+        await _presentation.Init(Players, Value.StartCapital);
         SetupChartOptions();
         await SetUpValues();
-        await LoadHistoricalData();
+        await _presentation.LoadHistoricalData(GenerateDateRangeForTimespan(SelectedTimeRange));
+        await AfterUpdate();
         HasLoaded = true;
     }
 
@@ -107,6 +134,26 @@
 
     private void SetupChartOptions()
     {
+        // Generate distinct colors for each player
+        // Current player gets blue (#007bff), others get different colors
+        List<string> colors = new();
+        string[] colorPalette = { "#007bff", "#dc3545", "#28a745", "#ffc107", "#17a2b8", "#6f42c1", "#e83e8c", "#fd7e14" };
+        int colorIndex = 0;
+
+        for (int i = 0; i < Players.Count; i++)
+        {
+            // Put current player first in the color scheme (blue)
+            if (Players[i].Email == Email)
+            {
+                colors.Insert(0, colorPalette[0]);
+            }
+            else
+            {
+                colors.Add(colorPalette[(colorIndex + 1) % colorPalette.Length]);
+                colorIndex++;
+            }
+        }
+
         chartOptions = new ApexChartOptions<ValuePoint>
         {
             Chart = new Chart
@@ -115,7 +162,7 @@
                 Animations = new Animations { Enabled = true }
             },
             Stroke = new Stroke { Curve = Curve.Smooth, Width = 3 },
-            Colors = new List<string> { "#007bff" },
+            Colors = colors,
             Xaxis = new XAxis { Type = XAxisType.Datetime },
             Yaxis = new List<YAxis> {
             new YAxis {
@@ -151,13 +198,13 @@
     {
         SelectedTimeRange = timeRange;
         StateHasChanged();
-        await LoadHistoricalData();
+        List<DateTime> dates = GenerateDateRangeForTimespan(SelectedTimeRange);
+        await _presentation.LoadHistoricalData(dates);
+        await AfterUpdate();
     }
 
-    private async Task LoadHistoricalData()
+    private async Task AfterUpdate()
     {
-        List<DateTime> dates = GenerateDateRangeForTimespan(SelectedTimeRange);
-        PlayerData = await _presentation.GetValueForDateTimes(dates, targetCurrency, (decimal)Value.StartCapital, CurrentPlayer.Transactions);
         StateHasChanged();
         if(_chart is not null)
         {
@@ -196,5 +243,20 @@
         public string Ticker { get; set; } = "";
         public int Antal { get; set; }
         public decimal AktuelKurs { get; set; }
+    }
+
+    private List<ParticipantViewModel> GetPlayersByTotalValue()
+    {
+        return Players
+            .OrderByDescending(p => GetPlayerTotalValue(p))
+            .ToList();
+    }
+
+    private decimal GetPlayerTotalValue(ParticipantViewModel player)
+    {
+        decimal stocksValue = player.Stocks
+            .Sum(s => (decimal)s.ValueInTargetCurrency);
+
+        return (decimal)player.Capital + stocksValue;
     }
 }

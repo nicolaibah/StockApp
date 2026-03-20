@@ -16,5 +16,5 @@ public class GameViewModel
     public DateTime EndDate { get; set; }
 
     [Range(100, 10000000, ErrorMessage = "Startkapital skal være mellem 100 og 10.000.000")]
-    public double StartCapital { get; set; }
+    public decimal StartCapital { get; set; }
 }

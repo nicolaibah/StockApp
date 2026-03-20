@@ -9,12 +9,26 @@ public class PresentationService
 {
     private readonly IExchangeRateService _exchangeService;
     private readonly IGameService _gameService;
+    private List<ParticipantViewModel> _participants = [];
+    public string TargetCurrency { get; set; } = "DKK";
+    private decimal GameCapital { get; set; } = 0;
     public PresentationService(IExchangeRateService exchangeService, IGameService gameService)
     {
         _exchangeService = exchangeService;
         _gameService = gameService;
     }
-
+    public async Task Init(List<ParticipantViewModel> participants, decimal gameCapital)
+    {
+        GameCapital = gameCapital;
+        _participants = participants;
+    }
+    public async Task LoadHistoricalData(List<DateTime> dates)
+    {
+        foreach (var p in _participants)
+        {
+            p.ValuePoints = await GetValueForDateTimes(dates, TargetCurrency, GameCapital, p.Transactions);
+        }
+    }
     public async Task<decimal> GetValueInTargetCurrency(StockViewModel stock, string targetCurrency = "DKK")
     {
         Quote q = await _gameService.GetQuote(stock.Ticker);
