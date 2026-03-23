@@ -44,6 +44,21 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Update appsettings.json
+        run: |
+          cat <<EOF > StockApp/appsettings.json
+          {
+            "Logging": {
+              "LogLevel": {
+                "Default": "Information",
+                "Microsoft.AspNetCore": "Warning"
+              }
+            },
+            "ApiBaseUrl": "https://stock-tracking-api-xyz.a.run.app",
+            "Environment": "Production"
+          }
+          EOF
+          
       - name: Publish app
         run: dotnet publish StockApp -c Release
 
