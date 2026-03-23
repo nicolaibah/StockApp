@@ -88,7 +88,10 @@ public class PresentationService
                     var history = stockHistoryCache[ticker];
                     var exchangeRate = stockExchangeRateCache[ticker];
 
-                    var valuePoint = history.FirstOrDefault(h => h.Date.Date == date.Date);
+                    // Try to get exact date match, otherwise use the most recent data point before this date
+                    var valuePoint = history.FirstOrDefault(h => h.Date.Date == date.Date)
+                        ?? history.Where(h => h.Date.Date <= date.Date).OrderByDescending(h => h.Date).FirstOrDefault();
+
                     if (valuePoint != null)
                     {
                         portfolioValue += (valuePoint.Value * exchangeRate) * amount;
