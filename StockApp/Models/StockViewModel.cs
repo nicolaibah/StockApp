@@ -1,5 +1,4 @@
-﻿using StockTrackingApi.Models.StockModels;
-
+﻿
 namespace StockApp.Models;
 
 public class StockViewModel

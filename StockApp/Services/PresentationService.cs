@@ -1,5 +1,4 @@
 ﻿using StockApp.Models;
-using StockTrackingApi.Models.StockModels;
 using StockTrackingApi.Services;
 using static StockApp.Pages.Game;
 
