@@ -23,6 +23,7 @@ builder.Services.AddOidcAuthentication(options =>
     options.ProviderOptions.DefaultScopes.Add("profile");
     options.ProviderOptions.DefaultScopes.Add("email");
 });
+
 builder.Services.AddScoped<IdTokenProvider>();
 builder.Services.AddTransient<AuthorizationHeaderHandler>();
 builder.Services.AddHttpClient("Api", client =>
