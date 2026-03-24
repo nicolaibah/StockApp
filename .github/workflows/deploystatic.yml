@@ -44,12 +44,11 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: JSON File Transform
-        uses: tnikFi/json-file-transform@v3
+      - name: Update my-file.json description
+        uses: restackio/update-json-file-action@2.1
         with:
-           files: '**/appsettings.json'
-           key-value-pairs: | 
-             ApiBaseUrl="https://stock-tracking-api-848976956808.europe-west1.run.app"
+         file: StockApp/wwwroot/appsettings.json
+         fields: "{'ApiBaseUrl': 'https://stock-tracking-api-848976956808.europe-west1.run.app'}"
              
           
       - name: Publish app
