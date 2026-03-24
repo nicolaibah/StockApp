@@ -1,0 +1,31 @@
+@namespace StockApp.Components
+
+<div class="glass-panel @CssClass">
+    @if (!string.IsNullOrEmpty(Title))
+    {
+        <div class="flex-between mb-8">
+            <h3 class="headline-sm">@Title</h3>
+            @if (HeaderActions != null)
+            {
+                <div class="flex gap-4">
+                    @HeaderActions
+                </div>
+            }
+        </div>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public RenderFragment? HeaderActions { get; set; }
+
+    [Parameter]
+    public string CssClass { get; set; } = "";
+}

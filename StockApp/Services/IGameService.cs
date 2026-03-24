@@ -1,5 +1,4 @@
 ﻿using StockApp.Models;
-using static StockApp.Pages.Game;
 
 namespace StockApp.Services;
 

@@ -5,29 +5,93 @@
 @using StockApp.Models
 @using StockApp.Services
 @using System.Security.Claims
+@using StockApp.Components
 @inject IGameService _gameService
-
 @inject AuthenticationStateProvider provider
 @attribute [Authorize]
 
 <PageTitle>🚀 Aktiedysten</PageTitle>
 
-<MudSelect @bind-Value="SelectedGame" ToStringFunc="x => x?.Name">
-    @foreach (var game in playersGames)
-    {
-        <MudSelectItem Value="game" />
-    }
-</MudSelect>
+<div class="surface py-8 px-8">
+    <div class="breathing-lg">
+        <!-- Header: Asymmetric Layout -->
+        <div class="flex-between mb-12" style="align-items: flex-start;">
+            <div>
+                <h1 class="display-md mb-4">Aktiedysten</h1>
+                <p class="body-md text-primary">Vælg dit spil for at komme i gang</p>
+            </div>
+            <div class="gap-4 flex-column" style="align-items: flex-end;">
+                <span class="label-md text-secondary">@playersGames.Count spil tilgængelige</span>
+            </div>
+        </div>
 
-@if (SelectedGame is not null)
-{
-    <Game Value="SelectedGame" Email="@email" />
-}
+        <!-- Game Selection -->
+        <div class="card mb-12">
+            <label class="label-md text-primary mb-4" style="display: block;">Vælg spil</label>
+            <select @bind="SelectedGameId" class="w-100" style="width: 100%;">
+                <option value="">-- Vælg et spil --</option>
+                @foreach (var game in playersGames)
+                {
+                    <option value="@game.Id">@game.Name - @game.EndDate.ToString("dd MMM yyyy")</option>
+                }
+            </select>
+        </div>
+
+        <!-- Game Info & Action -->
+        @if (SelectedGame is not null)
+        {
+            <div class="card-elevated mb-12">
+                <div class="flex-between mb-8">
+                    <div>
+                        <h2 class="headline-md mb-4">@SelectedGame.Name</h2>
+                        <p class="body-md text-surface">
+                            Spil løber til <span class="text-secondary">@SelectedGame.EndDate.ToString("dd. MMMM yyyy")</span>
+                        </p>
+                    </div>
+                    <div class="gap-breathing flex-column" style="text-align: right;">
+                        <div class="display-sm text-secondary">@SelectedGame.StartCapital.ToString("N0")</div>
+                        <div class="label-md text-primary">Startkapital</div>
+                    </div>
+                </div>
+
+                <NavLink href="@($"/game/{SelectedGame.Id}")" class="btn btn-primary">
+                    Gå til spil
+                </NavLink>
+            </div>
+        }
+
+        <!-- Running Games Info -->
+        @if (playersGames.Any())
+        {
+            <div class="mt-10">
+                <h3 class="headline-sm mb-8">Dine Aktive Spil</h3>
+                <div class="gap-breathing flex-column">
+                    @foreach (var game in GetRunningGames(playersGames))
+                    {
+                        <div class="surface-container p-8" style="border-radius: var(--radius-lg);">
+                            <div class="flex-between">
+                                <div>
+                                    <p class="label-md text-secondary mb-2">@game.Name</p>
+                                    <p class="body-md">Slut: @game.EndDate.ToString("dd. MMM yyyy")</p>
+                                </div>
+                                <NavLink href="@($"/game/{game.Id}")" class="btn btn-tertiary">
+                                    Åbn
+                                </NavLink>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
 
 @code {
     List<GameViewModel> playersGames = [];
     private GameViewModel? SelectedGame;
+    private string? SelectedGameId;
     private string email { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         var state = await provider.GetAuthenticationStateAsync();
@@ -37,15 +101,25 @@
         if (runningGames.Count() == 1)
         {
             SelectedGame = runningGames.First();
+            SelectedGameId = SelectedGame.Id;
         }
     }
 
+    private void OnGameSelected(ChangeEventArgs e)
+    {
+        if (e.Value is string id && !string.IsNullOrEmpty(id))
+        {
+            SelectedGame = playersGames.FirstOrDefault(x => x.Id == id);
+            SelectedGameId = id;
+        }
+    }
 
     private IEnumerable<GameViewModel> GetRunningGames(List<GameViewModel> playersGames)
     {
         return playersGames.Where(x => x.EndDate > DateTime.Now);
     }
 }
+
 
 
 

@@ -1,0 +1,47 @@
+@namespace StockApp.Components
+@typeparam TItem
+
+<div class="layer surface-container-low p-8">
+    @if (!string.IsNullOrEmpty(Title))
+    {
+        <h2 class="headline-md mb-8">@Title</h2>
+    }
+
+    <div style="overflow-x: auto;">
+        <table class="design-table">
+            @if (HeaderContent != null)
+            {
+                <thead>
+                    <tr>
+                        @HeaderContent
+                    </tr>
+                </thead>
+            }
+            <tbody>
+                @if (Items != null)
+                {
+                    @foreach (var item in Items)
+                    {
+                        <tr class="surface-container-lowest">
+                            @RowTemplate(item)
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public IEnumerable<TItem>? Items { get; set; }
+
+    [Parameter]
+    public RenderFragment? HeaderContent { get; set; }
+
+    [Parameter]
+    public RenderFragment<TItem>? RowTemplate { get; set; }
+}

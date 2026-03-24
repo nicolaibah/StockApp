@@ -1,0 +1,97 @@
+@page "/game/{GameId}"
+@using ApexCharts
+@using MudBlazor
+@using StockApp.Components
+@using StockApp.Models
+@using StockApp.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IGameService _gameService
+@inject IDialogService _dialogService
+@inject PresentationService _presentation
+@inject AuthenticationStateProvider authProvider
+@inject NavigationManager navManager
+@attribute [Authorize]
+
+<PageTitle>Game - Aktiedysten</PageTitle>
+
+@if (isLoading)
+{
+    <div class="surface py-12 px-8" style="text-align: center;">
+        <div class="breathing-lg">
+            <p class="body-md text-primary">⏳ Indlæser spil...</p>
+        </div>
+    </div>
+}
+else if (currentGame == null)
+{
+    <div class="surface py-12 px-8">
+        <div class="breathing-lg">
+            <div class="card">
+                <h1 class="headline-md text-error mb-8">⚠️ Spil ikke fundet</h1>
+                <p class="body-md mb-8">Det spil du leder efter kunne ikke findes. Prøv igen eller gå tilbage til hjemmesiden.</p>
+                <NavLink href="/" class="btn btn-primary">← Tilbage til hjemmesiden</NavLink>
+            </div>
+        </div>
+    </div>
+}
+else if (userEmail == null)
+{
+    <div class="surface py-12 px-8">
+        <div class="breathing-lg">
+            <div class="card">
+                <h1 class="headline-md text-error mb-8">⚠️ Authentificering fejlet</h1>
+                <p class="body-md mb-8">Vi kunne ikke finde din brugerinformation. Prøv venligst at logge ind igen.</p>
+                <NavLink href="/" class="btn btn-primary">← Tilbage til hjemmesiden</NavLink>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Game Content Component -->
+    <GameContent Value="currentGame" Email="userEmail" />
+}
+
+@code {
+    [Parameter]
+    public string GameId { get; set; }
+
+    private GameViewModel currentGame = null;
+    private string userEmail = null;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            // Get current user email
+            var authState = await authProvider.GetAuthenticationStateAsync();
+            userEmail = authState.User?.Claims?.FirstOrDefault(c => c.Type == "email")?.Value;
+
+            if (string.IsNullOrEmpty(userEmail))
+            {
+                isLoading = false;
+                return;
+            }
+
+            // Get player's games
+            var games = await _gameService.GetPlayerGames();
+            currentGame = games?.FirstOrDefault(g => g.Id == GameId);
+
+            if (currentGame == null)
+            {
+                isLoading = false;
+                return;
+            }
+
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Fejl ved indlæsning af spil: {ex.Message}");
+            isLoading = false;
+        }
+    }
+}

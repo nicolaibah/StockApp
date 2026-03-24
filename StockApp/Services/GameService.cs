@@ -1,7 +1,6 @@
 ﻿using StockApp.Models;
 using System.Net.Http.Json;
 using System.Transactions;
-using static StockApp.Pages.Game;
 
 namespace StockApp.Services;
 
