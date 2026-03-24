@@ -56,7 +56,7 @@
         <!-- Chart Section -->
         @if (HasLoaded)
         {
-            <div class="card mb-12">
+            <div class="card mb-12" style="margin-bottom: var(--spacing-12); position: relative; z-index: 1;">
                 <h2 class="headline-md mb-8">Portefølje Værdi Over Tid</h2>
 
                 <!-- Time Range Buttons -->
@@ -69,7 +69,7 @@
                 </div>
 
                 <!-- Chart -->
-                <div class="chart-bleed" style="height: 400px;">
+                <div style="height: 400px; overflow: hidden; position: relative;">
                     @if (Players.Any(p => p.ValuePoints?.Any() == true))
                     {
                         <ApexChart @ref="_chart" TItem="ValuePoint"
@@ -91,7 +91,7 @@
                     }
                     else
                     {
-                        <div style="text-align: center; padding: var(--spacing-8); color: rgba(214, 228, 249, 0.5);">
+                        <div style="text-align: center; padding: var(--spacing-8); color: rgba(214, 228, 249, 0.5); height: 100%; display: flex; align-items: center; justify-content: center;">
                             <p class="body-md">Ingen historik tilgængelig endnu</p>
                         </div>
                     }
@@ -100,7 +100,7 @@
         }
 
         <!-- Your Stocks Table -->
-        <div class="card">
+        <div class="card mt-10" style="position: relative; z-index: 2;">
             <div class="flex-between mb-8">
                 <h2 class="headline-md">Din Beholdning</h2>
                 <button class="btn btn-secondary" @onclick="async () => await AddTransaction()" style="background-color: var(--secondary); color: var(--on-secondary);">+ Tilføj Transaktion</button>
