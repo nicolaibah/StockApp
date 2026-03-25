@@ -64,11 +64,12 @@
                     <button class="@GetTimeRangeButtonClass("1y")" @onclick="@(async () => await SelectTimeRange("1y"))">1 år</button>
                 </div>
 
-                <div style="height: 400px; overflow: hidden; position: relative;">
+                <div style="height: 500px; position: relative;">
                     @if (Players.Any(p => p.ValuePoints?.Any() == true))
                     {
                         <ApexChart @ref="_chart" TItem="ValuePoint"
-                                   Options="chartOptions">
+                                   Options="chartOptions"
+                                   Height="500">
 
                             @foreach (var player in Players.OrderByDescending(p => p.Email == Email))
                             {
@@ -238,8 +239,8 @@
             {
                 Padding = new Padding
                 {
-                    Top = 30,    // Giver masser af plads til toppen af kurven
-                    Bottom = 30, // Giver plads i bunden
+                    Top = 10,
+                    Bottom = 100,  // ← big bottom padding to push plot area up
                     Left = 20,
                     Right = 20
                 },
