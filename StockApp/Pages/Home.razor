@@ -54,7 +54,7 @@
                     </div>
                 </div>
 
-                <NavLink href="@($"/game/{SelectedGame.Id}")" class="btn btn-primary">
+                <NavLink href="@($"/StockApp/game/{SelectedGame.Id}")" class="btn btn-primary">
                     Gå til spil
                 </NavLink>
             </div>
@@ -74,7 +74,7 @@
                                     <p class="label-md text-secondary mb-2">@game.Name</p>
                                     <p class="body-md">Slut: @game.EndDate.ToString("dd. MMM yyyy")</p>
                                 </div>
-                                <NavLink href="@($"/game/{game.Id}")" class="btn btn-tertiary">
+                                <NavLink href="@($"/StockApp/game/{game.Id}")" class="btn btn-tertiary">
                                     Åbn
                                 </NavLink>
                             </div>
