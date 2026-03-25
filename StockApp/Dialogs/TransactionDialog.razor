@@ -2,123 +2,112 @@
 @using StockApp.Models
 @using StockApp.Services
 @inject IGameService _gameService
+@inject ISnackbar Snackbar
 
-<div class="glass-panel-overlay" style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1000; padding: var(--spacing-8);">
-    <div class="glass-panel" style="width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto;">
-        <!-- Header -->
-        <div class="flex-between mb-8" style="align-items: center;">
-            <h2 class="headline-md">
-                @(IsBuy ? "🛒 Køb Aktie" : "📊 Sælg Aktie")
-            </h2>
-            <button class="btn btn-ghost" @onclick="Cancel" style="padding: 0.5rem; min-width: auto;">✕</button>
-        </div>
+<MudDialog>
+    <DialogContent>
+        <div class="glass-panel" style="width: 100%; max-width: 500px; max-height: 80vh; overflow-y: auto; padding: var(--spacing-4);">
+            <div class="flex-between mb-8" style="align-items: center;">
+                <h2 class="headline-md">
+                    @(IsBuy ? "🛒 Køb Aktie" : "📊 Sælg Aktie")
+                </h2>
+            </div>
 
-        <!-- Form -->
-        <form @onsubmit="Submit">
-            <div class="gap-breathing flex-column">
-                <!-- Ticker Symbol -->
-                <div>
-                    <label class="label-md text-secondary mb-2" style="display: block;">Ticker Symbol</label>
-                    @if (IsBuy)
-                    {
-                        <input type="text" 
-                               @bind="SearchTerm" 
-                               placeholder="Søg efter aktie..." 
-                               class="w-100" 
-                               style="width: 100%;"
-                               @oninput="HandleSearch" />
-                        @if (ShowSearchResults && SearchResults.Any())
+            <form id="transactionForm" @onsubmit="Submit">
+                <div class="gap-breathing flex-column">
+                    <div>
+                        <label class="label-md text-secondary mb-2" style="display: block;">Ticker Symbol</label>
+                        @if (IsBuy)
                         {
-                            <div class="surface-container-high" style="margin-top: var(--spacing-2); border-radius: var(--radius-lg); overflow: hidden; max-height: 200px; overflow-y: auto;">
-                                @foreach (var result in SearchResults)
-                                {
-                                    <div class="p-4" 
-                                         style="cursor: pointer; border-bottom: 1px solid rgba(125, 255, 162, 0.1); transition: background-color 0.2s;"
-                                         @onclick="() => SelectStock(result)">
-                                        <div class="label-md text-secondary">@result.Symbol</div>
-                                        <div class="body-md" style="font-size: 0.75rem; color: rgba(214, 228, 249, 0.7);">@result.LongName</div>
-                                    </div>
-                                }
+                            <input type="text"
+                                   @bind="SearchTerm"
+                                   @bind:event="oninput"
+                                   placeholder="Søg efter aktie..."
+                                   class="w-100"
+                                   style="width: 100%;"
+                                   @onkeyup="HandleSearch" />
+
+                            @if (ShowSearchResults && SearchResults.Any())
+                            {
+                                <div class="surface-container-high" style="margin-top: var(--spacing-2); border-radius: var(--radius-lg); overflow: hidden; max-height: 200px; overflow-y: auto; position: absolute; z-index: 10; width: 100%; max-width: 430px; border: 1px solid rgba(125, 255, 162, 0.2);">
+                                    @foreach (var result in SearchResults)
+                                    {
+                                        <div class="p-4"
+                                             style="cursor: pointer; border-bottom: 1px solid rgba(125, 255, 162, 0.1); background: var(--surface-container-high); transition: background-color 0.2s;"
+                                             @onclick="() => SelectStock(result)">
+                                            <div class="label-md text-secondary">@result.Symbol</div>
+                                            <div class="body-md" style="font-size: 0.75rem; color: rgba(214, 228, 249, 0.7);">@result.LongName</div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="surface-container-lowest p-4" style="border-radius: var(--radius-lg); color: var(--secondary);">
+                                <span class="label-md">@Ticker</span>
                             </div>
                         }
-                    }
-                    else
-                    {
-                        <div class="surface-container-lowest p-4" style="border-radius: var(--radius-lg); color: var(--secondary);">
-                            <span class="label-md">@Ticker</span>
-                        </div>
-                    }
-                </div>
-
-                <!-- Date -->
-                <div>
-                    <label class="label-md text-secondary mb-2" style="display: block;">Dato</label>
-                    <input type="date" @bind="Date" class="w-100" style="width: 100%;" />
-                </div>
-
-                <!-- Amount -->
-                <div>
-                    <label class="label-md text-secondary mb-2" style="display: block;">Antal aktier</label>
-                    <input type="number" @bind="Amount" step="0.0001" min="0.0001" class="w-100" style="width: 100%;" required />
-                </div>
-
-                <!-- Total Price -->
-                <div>
-                    <label class="label-md text-secondary mb-2" style="display: block;">Samlet pris (DKK)</label>
-                    <input type="number" @bind="TotalPrice" step="0.01" min="0.01" class="w-100" style="width: 100%;" required />
-                </div>
-
-                <!-- Price Per Unit (calculated) -->
-                @if (Amount > 0 && TotalPrice > 0)
-                {
-                    <div class="surface-container-low p-6" style="border-radius: var(--radius-lg); border-left: 4px solid var(--secondary);">
-                        <div class="label-md text-secondary mb-2" style="display: block;">Pris per aktie</div>
-                        <div class="display-sm gradient-primary-text">
-                            @((TotalPrice / Amount).ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("da-DK")))
-                        </div>
                     </div>
-                }
-            </div>
 
-            <!-- Actions -->
-            <div class="flex gap-4 mt-10" style="justify-content: flex-end;">
-                <button type="button" class="btn btn-tertiary" @onclick="Cancel">Annuller</button>
-                <button type="submit" 
-                        class="btn btn-primary" 
-                        style="background-color: @(IsBuy ? "var(--secondary)" : "var(--error)"); color: @(IsBuy ? "var(--on-secondary)" : "var(--on-error)");">
-                    @(IsBuy ? "Køb Nu" : "Sælg Nu")
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
+                    <div>
+                        <label class="label-md text-secondary mb-2" style="display: block;">Dato</label>
+                        <input type="date" @bind="Date" class="w-100" style="width: 100%;" />
+                    </div>
+
+                    <div>
+                        <label class="label-md text-secondary mb-2" style="display: block;">Antal aktier</label>
+                        <input type="number" @bind="Amount" step="0.0001" min="0.0001" class="w-100" style="width: 100%;" required />
+                    </div>
+
+                    <div>
+                        <label class="label-md text-secondary mb-2" style="display: block;">Samlet pris (DKK)</label>
+                        <input type="number" @bind="TotalPrice" step="0.01" min="0.01" class="w-100" style="width: 100%;" required />
+                    </div>
+
+                    @if (Amount > 0 && TotalPrice > 0)
+                    {
+                        <div class="surface-container-low p-6" style="border-radius: var(--radius-lg); border-left: 4px solid var(--secondary);">
+                            <div class="label-md text-secondary mb-2" style="display: block;">Pris per aktie</div>
+                            <div class="display-sm gradient-primary-text">
+                                @((TotalPrice / Amount).ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("da-DK")))
+                            </div>
+                        </div>
+                    }
+                </div>
+            </form>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <div class="flex gap-4 p-4" style="justify-content: flex-end; width: 100%;">
+            <button type="button" class="btn btn-tertiary" @onclick="Cancel">Annuller</button>
+            <button type="submit"
+                    form="transactionForm"
+                    class="btn btn-primary"
+                    style="background-color: @(IsBuy ? "var(--secondary)" : "var(--error)"); color: @(IsBuy ? "var(--on-secondary)" : "var(--on-error)");">
+                @(IsBuy ? "Køb Nu" : "Sælg Nu")
+            </button>
+        </div>
+    </DialogActions>
+</MudDialog>
 
 @code {
     [CascadingParameter]
-    private IMudDialogInstance MudDialog { get; set; }
+    private IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] 
-    public double Amount { get; set; }
+    [Parameter] public double Amount { get; set; }
+    [Parameter] public double TotalPrice { get; set; }
+    [Parameter] public DateTime Date { get; set; } = DateTime.Now;
+    [Parameter] public string? Ticker { get; set; }
+    [Parameter] public string GameId { get; set; } = string.Empty;
 
-    [Parameter] 
-    public double TotalPrice { get; set; }
-
-    [Parameter] 
-    public DateTime Date { get; set; } = DateTime.Now;
-
-    [Parameter] 
-    public string? Ticker { get; set; }
-
-    [Parameter] 
-    public string GameId { get; set; } = string.Empty;
-
-    private YahooQuoteResult SelectedStock { get; set; }
+    private YahooQuoteResult? SelectedStock { get; set; }
     private bool IsBuy { get; set; } = true;
     private string SearchTerm { get; set; } = "";
     private List<YahooQuoteResult> SearchResults { get; set; } = [];
     private bool ShowSearchResults { get; set; } = false;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         if (!string.IsNullOrEmpty(Ticker))
         {
@@ -126,12 +115,12 @@
         }
     }
 
-    private async Task HandleSearch(ChangeEventArgs e)
+    private async Task HandleSearch()
     {
-        SearchTerm = e.Value?.ToString() ?? "";
         if (SearchTerm.Length > 1)
         {
-            SearchResults = (await _gameService.SearchStocks(SearchTerm, CancellationToken.None)).ToList();
+            var results = await _gameService.SearchStocks(SearchTerm, CancellationToken.None);
+            SearchResults = results.ToList();
             ShowSearchResults = true;
         }
         else
@@ -149,10 +138,8 @@
 
     private async Task Submit()
     {
-        if (string.IsNullOrEmpty(GetTicker()))
-        {
-            return;
-        }
+        var tickerToUse = GetTicker();
+        if (string.IsNullOrEmpty(tickerToUse)) return;
 
         TransactionViewModel transactionViewModel = new()
         {
@@ -160,20 +147,26 @@
             Date = Date,
             IsBuy = IsBuy,
             PricePerUnit = TotalPrice / Amount,
-            Ticker = GetTicker()
+            Ticker = tickerToUse
         };
 
-        var success = await _gameService.AddTransaction(transactionViewModel, GameId);
-        if (success)
+
+        var res = await _gameService.AddTransaction(transactionViewModel, GameId);
+
+        if (res.Success)
         {
             MudDialog.Close(DialogResult.Ok(transactionViewModel));
+
         }
+        else
+        {
+            Snackbar.Add(res.ErrorMessage ?? "Der skete en fejl. Prøv igen senere.", Severity.Error);
+        }
+
+
     }
 
-    private string GetTicker()
-    {
-        return !string.IsNullOrEmpty(Ticker) ? Ticker : SelectedStock?.Symbol ?? "";
-    }
+    private string GetTicker() => !string.IsNullOrEmpty(Ticker) ? Ticker : SelectedStock?.Symbol ?? "";
 
     private void Cancel() => MudDialog.Cancel();
 }

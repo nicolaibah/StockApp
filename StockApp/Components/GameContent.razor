@@ -5,13 +5,11 @@
 
 <div class="surface py-8 px-8">
     <div class="breathing-lg">
-        <!-- Header -->
         <div class="mb-12">
             <h1 class="display-md mb-4">Scoreboard</h1>
             <p class="body-md text-primary">Oversigt over alle spilleres porteføljer</p>
         </div>
 
-        <!-- Leaderboard Table -->
         <div class="card mb-12">
             <div style="overflow-x: auto;">
                 <table class="design-table">
@@ -38,7 +36,7 @@
                                             <span>@player.Name</span>
                                             @if (isCurrent)
                                             {
-                                                <span class="label-md" style="background-color: var(--primary-fixed); color: var(--on-primary); padding: 0.25rem 0.75rem; border-radius: var(--radius-md);">Du</span>
+                                                <span class="label-md" style="background-color: var(--primary-fixed); color: var(--on-primary); padding: 0.25rem 0.75rem; border-radius: var(--radius-md);">Dig</span>
                                             }
                                         </div>
                                     </td>
@@ -53,13 +51,11 @@
             </div>
         </div>
 
-        <!-- Chart Section -->
         @if (HasLoaded)
         {
             <div class="card mb-12" style="margin-bottom: var(--spacing-12); position: relative; z-index: 1;">
                 <h2 class="headline-md mb-8">Portefølje Værdi Over Tid</h2>
 
-                <!-- Time Range Buttons -->
                 <div class="flex gap-4 mb-8" style="flex-wrap: wrap;">
                     <button class="@GetTimeRangeButtonClass("1d")" @onclick="@(async () => await SelectTimeRange("1d"))">1 dag</button>
                     <button class="@GetTimeRangeButtonClass("5d")" @onclick="@(async () => await SelectTimeRange("5d"))">5 dage</button>
@@ -68,7 +64,6 @@
                     <button class="@GetTimeRangeButtonClass("1y")" @onclick="@(async () => await SelectTimeRange("1y"))">1 år</button>
                 </div>
 
-                <!-- Chart -->
                 <div style="height: 400px; overflow: hidden; position: relative;">
                     @if (Players.Any(p => p.ValuePoints?.Any() == true))
                     {
@@ -99,7 +94,6 @@
             </div>
         }
 
-        <!-- Your Stocks Table -->
         <div class="card mt-10" style="position: relative; z-index: 2;">
             <div class="flex-between mb-8">
                 <h2 class="headline-md">Din Beholdning</h2>
@@ -148,14 +142,9 @@
     [Parameter, EditorRequired] public GameViewModel Value { get; set; }
     [Parameter, EditorRequired] public string Email { get; set; }
 
-    [Inject]
-    private IGameService _gameService { get; set; }
-
-    [Inject]
-    private IDialogService _dialogService { get; set; }
-
-    [Inject]
-    private PresentationService _presentation { get; set; }
+    [Inject] private IGameService _gameService { get; set; }
+    [Inject] private IDialogService _dialogService { get; set; }
+    [Inject] private PresentationService _presentation { get; set; }
 
     private ApexChart<ValuePoint> _chart = new();
     private string targetCurrency = "DKK";
@@ -167,43 +156,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        try
-        {
-            Players = await _gameService.GetPlayers(Value.Id);
-
-            // Find current player with error handling
-            var player = Players.FirstOrDefault(x => x.Email == Email);
-            if (player == null)
-            {
-                Console.WriteLine($"Player not found for email: {Email}");
-                return;
-            }
-
-            CurrentPlayer = player;
-
-            await _presentation.Init(Players, Value.StartCapital);
-            SetupChartOptions();
-            await SetUpValues();
-
-            // Ensure ValuePoints is initialized
-            foreach (var p in Players)
-            {
-                if (p.ValuePoints == null)
-                {
-                    p.ValuePoints = new List<ValuePoint>();
-                }
-            }
-
-            await _presentation.LoadHistoricalData(GenerateDateRangeForTimespan(SelectedTimeRange));
-            await AfterUpdate();
-            HasLoaded = true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error initializing game: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
-            HasLoaded = true; // Still set to true to avoid infinite loading state
-        }
+        await LoadData();
     }
 
     private async Task SetUpValues()
@@ -224,19 +177,19 @@
 
     private void SetupChartOptions()
     {
+        // 1. Farve-logik: Sørg for at din egen farve altid er først
         List<string> colors = new();
-        string[] colorPalette = { "#7dffa2", "#bbc6e2", "#ffb4ab", "#a8dadc", "#f1d4b1", "#d7b8ff", "#a8dadc", "#ffccdd" };
+        string[] colorPalette = { "#bbc6e2", "#ffb4ab", "#a8dadc", "#f1d4b1", "#d7b8ff", "#ffccdd" };
         int colorIndex = 0;
 
-        for (int i = 0; i < Players.Count; i++)
+        var sortedPlayers = Players.OrderByDescending(p => p.Email == Email).ToList();
+
+        foreach (var player in sortedPlayers)
         {
-            if (Players[i].Email == Email)
-            {
-                colors.Insert(0, "#7dffa2");
-            }
+            if (player.Email == Email) colors.Add("#7dffa2"); // Din grønne farve
             else
             {
-                colors.Add(colorPalette[(colorIndex + 1) % colorPalette.Length]);
+                colors.Add(colorPalette[colorIndex % colorPalette.Length]);
                 colorIndex++;
             }
         }
@@ -247,121 +200,134 @@
             {
                 Toolbar = new Toolbar { Show = false },
                 Animations = new Animations { Enabled = true },
-                Background = "transparent"
+                Background = "transparent",
             },
-            Stroke = new Stroke { Curve = Curve.Smooth, Width = 2 },
+            Stroke = new Stroke { Curve = Curve.Smooth, Width = 3 },
             Colors = colors,
-            Fill = new Fill { Type = FillType.Gradient },
-            Grid = new Grid
+            Fill = new Fill
             {
-                Show = true,
-                BorderColor = "rgba(68, 71, 76, 0.1)"
-            },
-            Xaxis = new XAxis 
-            { 
-                Type = XAxisType.Datetime,
-                Labels = new XAxisLabels { Style = new AxisLabelStyle { Colors = new List<string> { "rgba(214, 228, 249, 0.6)" } } }
+                Type = FillType.Gradient,
+                Gradient = new FillGradient { OpacityFrom = 0.5, OpacityTo = 0.0 }
             },
             Yaxis = new List<YAxis> {
-                new YAxis {
-                    Labels = new YAxisLabels {
-                        Formatter = @"value => value.toLocaleString('da-DK', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' kr'",
-                        Style = new AxisLabelStyle { Colors = new List<string> { "rgba(214, 228, 249, 0.6)" } }
-                    }
+            new YAxis {
+                // ForceNiceScale = true sammen med de andre herunder sikrer runde tal
+                ForceNiceScale = true,
+                DecimalsInFloat = 0,
+                // Vi fjerner manuel Min/Max for at lade ApexCharts finde de "nærmeste" runde tal
+                // Men vi sætter denne for at sikre, den ikke altid tvinger den ned til 0
+                Labels = new YAxisLabels {
+                    Style = new AxisLabelStyle {
+                        Colors = new List<string> { "rgba(214, 228, 249, 0.6)" },
+                        FontSize = "12px"
+                    },
+                    Formatter = @"value => Math.round(value).toLocaleString('da-DK') + ' kr'"
                 }
+            }
+        },
+            Xaxis = new XAxis
+            {
+                Type = XAxisType.Datetime,
+                Labels = new XAxisLabels
+                {
+                    Style = new AxisLabelStyle { Colors = new List<string> { "rgba(214, 228, 249, 0.6)" } }
+                }
+            },
+            // Grid Padding er "hemmeligheden" bag at undgå at top/bund bliver klippet
+            Grid = new Grid
+            {
+                Padding = new Padding
+                {
+                    Top = 30,    // Giver masser af plads til toppen af kurven
+                    Bottom = 30, // Giver plads i bunden
+                    Left = 20,
+                    Right = 20
+                },
+                BorderColor = "rgba(68, 71, 76, 0.1)"
+            },
+            Legend = new Legend
+            {
+                Show = true,
+                Position = LegendPosition.Bottom,
+                FontSize = "14px",
+                Labels = new LegendLabels { Colors = "rgba(214, 228, 249, 0.6)" }
             },
             Tooltip = new Tooltip
             {
+                Theme = Mode.Dark,
                 Style = new TooltipStyle { FontFamily = "Inter, sans-serif" }
             }
         };
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            HasLoaded = false;
+            Players = await _gameService.GetPlayers(Value.Id);
+            var player = Players.FirstOrDefault(x => x.Email == Email);
+            if (player == null) return;
+
+            CurrentPlayer = player;
+            await _presentation.Init(Players, Value.StartCapital);
+            await SetUpValues();
+
+            foreach (var p in Players)
+            {
+                if (p.ValuePoints == null) p.ValuePoints = new List<ValuePoint>();
+            }
+
+            await _presentation.LoadHistoricalData(GenerateDateRangeForTimespan(SelectedTimeRange));
+
+            // Vi genberegner chart options nu hvor vi har data
+            SetupChartOptions();
+            await AfterUpdate();
+            HasLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            HasLoaded = true;
+        }
     }
 
     private async Task AddTransaction(StockViewModel? sellStock = null)
     {
         try
         {
-            if (Value == null)
-            {
-                Console.WriteLine("Game value is null");
-                return;
-            }
-
-            DialogParameters dialParams = new()
-            {
-                 { "GameId", Value.Id },
-                 { "Ticker", sellStock?.Ticker }
-            };
+            DialogParameters dialParams = new() { { "GameId", Value.Id }, { "Ticker", sellStock?.Ticker } };
             var dial = await _dialogService.ShowAsync<Dialogs.TransactionDialog>("Transaction", dialParams);
             var res = await dial.Result;
-            if (!res.Canceled && res.Data is TransactionViewModel transaction)
-            {
-                if (CurrentPlayer != null)
-                {
-                    CurrentPlayer.Transactions.Add(transaction);
-                }
-            }
+            if (!res.Canceled) await LoadData();
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error adding transaction: {ex.Message}");
-        }
+        catch (Exception ex) { Console.WriteLine($"Error: {ex.Message}"); }
     }
 
     private async Task SelectTimeRange(string timeRange)
     {
         SelectedTimeRange = timeRange;
-        StateHasChanged();
         List<DateTime> dates = GenerateDateRangeForTimespan(SelectedTimeRange);
         await _presentation.LoadHistoricalData(dates);
+
+        // Vigtigt: Genberegn skala når tidsinterval ændres
+        SetupChartOptions();
         await AfterUpdate();
     }
 
     private async Task AfterUpdate()
     {
         StateHasChanged();
-        if (_chart is not null)
-        {
-            await _chart.UpdateSeriesAsync();
-        }
+        if (_chart is not null) await _chart.UpdateSeriesAsync();
     }
 
     private List<DateTime> GenerateDateRangeForTimespan(string timeRange)
     {
-        List<DateTime> dates = new();
-        int daysBack = timeRange switch
-        {
-            "1d" => 1,
-            "5d" => 5,
-            "1m" => 30,
-            "3m" => 90,
-            "1y" => 365,
-            _ => 5
-        };
-
-        for (int i = 0; i <= daysBack; i++)
-        {
-            dates.Add(DateTime.Now.AddDays(-i));
-        }
-
-        return dates.OrderBy(d => d).ToList();
+        int daysBack = timeRange switch { "1d" => 1, "5d" => 5, "1m" => 30, "3m" => 90, "1y" => 365, _ => 5 };
+        return Enumerable.Range(0, daysBack + 1).Select(i => DateTime.Now.AddDays(-i)).OrderBy(d => d).ToList();
     }
 
-    private string GetTimeRangeButtonClass(string range) => 
-        $"btn {(SelectedTimeRange == range ? "btn-primary" : "btn-tertiary")}";
-
-    private List<ParticipantViewModel> GetPlayersByTotalValue()
-    {
-        return Players
-            .OrderByDescending(p => GetPlayerTotalValue(p))
-            .ToList();
-    }
-
-    private decimal GetPlayerTotalValue(ParticipantViewModel player)
-    {
-        decimal stocksValue = player.Stocks
-            .Sum(s => (decimal)s.ValueInTargetCurrency);
-
-        return (decimal)player.Capital + stocksValue;
-    }
+    private string GetTimeRangeButtonClass(string range) => $"btn {(SelectedTimeRange == range ? "btn-primary" : "btn-tertiary")}";
+    private List<ParticipantViewModel> GetPlayersByTotalValue() => Players.OrderByDescending(p => GetPlayerTotalValue(p)).ToList();
+    private decimal GetPlayerTotalValue(ParticipantViewModel player) => (decimal)player.Capital + player.Stocks.Sum(s => (decimal)s.ValueInTargetCurrency);
 }

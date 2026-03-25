@@ -10,7 +10,7 @@ public interface IGameService
     Task<List<GameViewModel>> GetPlayerGames();
     Task<List<ParticipantViewModel>> GetPlayers(string gameId);
     Task<IEnumerable<YahooQuoteResult>> SearchStocks(string search, CancellationToken ct);
-    Task<bool> AddTransaction(TransactionViewModel transaction, string gameId);
+    Task<(bool Success, string? ErrorMessage)> AddTransaction(TransactionViewModel transaction, string gameId);
     Task<Quote> GetQuote(string ticker);
     Task<List<ValuePoint>> GetHistory(string ticker, DateTime fromDate);
 }

@@ -49,10 +49,17 @@ public class GameService : IGameService
         List<YahooQuoteResult> symbols = await _client.GetFromJsonAsync<List<YahooQuoteResult>>($"api/stock/search?search={search}");
         return symbols;
     }
-    public async Task<bool> AddTransaction(TransactionViewModel transaction, string gameId)
+    public async Task<(bool Success, string? ErrorMessage)> AddTransaction(TransactionViewModel transaction, string gameId)
     {
-        var res = await _client.PostAsJsonAsync($"api/stock/transaction?gameId={gameId}", transaction);
-        return res.IsSuccessStatusCode;
+        var response = await _client.PostAsJsonAsync($"api/stock/transaction?gameId={gameId}", transaction);
+
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null);
+        }
+
+        var errorMsg = await response.Content.ReadAsStringAsync();
+        return (false, errorMsg);
     }
     public async Task<Quote> GetQuote(string ticker)
     {
@@ -60,9 +67,9 @@ public class GameService : IGameService
     }
     public async Task<List<ValuePoint>> GetHistory(string ticker, DateTime fromDate)
     {
-        
-            var res = await _client.GetFromJsonAsync<List<ValuePoint>>($"api/stock/quote/history?ticker={ticker}&fromDate={fromDate.Ticks}");
-            return res ?? new List<ValuePoint>();
-      
+
+        var res = await _client.GetFromJsonAsync<List<ValuePoint>>($"api/stock/quote/history?ticker={ticker}&fromDate={fromDate.Ticks}");
+        return res ?? new List<ValuePoint>();
+
     }
 }
