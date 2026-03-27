@@ -2,12 +2,31 @@
 @using MudBlazor
 @using StockApp.Models
 @using StockApp.Services
+@using StockLib
 
-<div class="surface py-8 px-8">
+<style>
+    /* Prevent white space at the bottom and add hover effect for scoreboard */
+    .scoreboard-row {
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+
+        .scoreboard-row:hover {
+            background-color: var(--surface-container-high) !important;
+            opacity: 0.9;
+        }
+
+    .btn-xs {
+        padding: 2px 8px;
+        font-size: 0.75rem;
+    }
+</style>
+
+<div class="surface py-8 px-8" style="min-height: 100vh; display: flex; flex-direction: column;">
     <div class="breathing-lg">
         <div class="mb-12">
             <h1 class="display-md mb-4">Scoreboard</h1>
-            <p class="body-md text-primary">Oversigt over alle spilleres porteføljer</p>
+            <p class="body-md text-primary">Oversigt over alle spilleres porteføljer - Klik på en spiller for at se deres beholdning</p>
         </div>
 
         <div class="card mb-12">
@@ -28,19 +47,33 @@
                             foreach (var player in rankedPlayers)
                             {
                                 var isCurrent = player.Email == Email;
+                                var isSelected = player.Email == DisplayPlayer.Email;
                                 var totalValue = GetPlayerTotalValue(player);
-                                <tr class="@(isCurrent ? "surface-container-high" : "surface-container-lowest")">
+
+                                <tr class="scoreboard-row @(isSelected ? "surface-container-highest" : (isCurrent ? "surface-container-high" : "surface-container-lowest"))"
+                                    @onclick="() => SelectPlayer(player)">
                                     <td class="data-cell">@rank</td>
                                     <td>
                                         <div class="flex-center gap-4" style="justify-content: flex-start;">
-                                            <span>@player.Name</span>
+                                            <span style="@(isSelected ? "font-weight: bold; color: var(--primary);" : "")">@player.Name</span>
                                             @if (isCurrent)
                                             {
                                                 <span class="label-md" style="background-color: var(--primary-fixed); color: var(--on-primary); padding: 0.25rem 0.75rem; border-radius: var(--radius-md);">Dig</span>
                                             }
                                         </div>
                                     </td>
-                                    <td class="data-cell text-secondary">@($"{totalValue:N2} kr")</td>
+                                    <td class="data-cell text-secondary">
+                                        @($"{totalValue:N2} kr")
+                                        @{
+                                            // Optional: Show if the player is overall in profit or loss
+                                            var initial = player.Stocks.Sum(s => s.GetValueInvested()) + (decimal)player.Capital;
+                                            var totalGain = totalValue - initial;
+                                            var gainColor = totalGain >= 0 ? "#7dffa2" : "#ffb4ab";
+                                        }
+                                        <div style="font-size: 0.7rem; color: @gainColor">
+                                            @(totalGain >= 0 ? "+" : "")@totalGain.ToString("N2") kr
+                                        </div>
+                                    </td>
                                     <td class="data-cell">@($"{player.Capital:N2} kr")</td>
                                 </tr>
                                 rank++;
@@ -53,89 +86,154 @@
 
         @if (HasLoaded)
         {
-            <div class="card mb-12" style="margin-bottom: var(--spacing-12); position: relative; z-index: 1;">
-                <h2 class="headline-md mb-8">Portefølje Værdi Over Tid</h2>
+            <div style="display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap;">
 
-                <div class="flex gap-4 mb-8" style="flex-wrap: wrap;">
-                    <button class="@GetTimeRangeButtonClass("1d")" @onclick="@(async () => await SelectTimeRange("1d"))">1 dag</button>
-                    <button class="@GetTimeRangeButtonClass("5d")" @onclick="@(async () => await SelectTimeRange("5d"))">5 dage</button>
-                    <button class="@GetTimeRangeButtonClass("1m")" @onclick="@(async () => await SelectTimeRange("1m"))">1 måned</button>
-                    <button class="@GetTimeRangeButtonClass("3m")" @onclick="@(async () => await SelectTimeRange("3m"))">3 måneder</button>
-                    <button class="@GetTimeRangeButtonClass("1y")" @onclick="@(async () => await SelectTimeRange("1y"))">1 år</button>
+                <div class="card" style="flex: 2; min-width: 600px; position: relative; z-index: 1;">
+                    <h2 class="headline-md mb-8">Portefølje Værdi Over Tid</h2>
+
+                    <div class="flex gap-4 mb-8" style="flex-wrap: wrap;">
+                        <button class="@GetTimeRangeButtonClass(TimeRange.OneDay)" @onclick="@(async () => await SwitchTimeRange(TimeRange.OneDay))">1 dag</button>
+                        <button class="@GetTimeRangeButtonClass(TimeRange.FiveDays)" @onclick="@(async () => await SwitchTimeRange(TimeRange.FiveDays))">5 dage</button>
+                        <button class="@GetTimeRangeButtonClass(TimeRange.OneMonth)" @onclick="@(async () => await SwitchTimeRange(TimeRange.OneMonth))">1 måned</button>
+                        <button class="@GetTimeRangeButtonClass(TimeRange.ThreeMonths)" @onclick="@(async () => await SwitchTimeRange(TimeRange.ThreeMonths))">3 måneder</button>
+                        @* <button class="@GetTimeRangeButtonClass("1y")" @onclick="@(async () => await SwitchTimeRange(TimeRange.on))">1 år</button> *@
+                    </div>
+
+                    <div style="height: 500px; position: relative;">
+                        @if (Players.Any(p => p.PortfolioDateValues?.Any() == true))
+                        {
+                            <ApexChart @ref="_chart" TItem="ValuePoint" Options="chartOptions" Height="500">
+                                @foreach (var player in Players.OrderByDescending(p => p.Email == Email))
+                                {
+                                    @if (true)
+                                    {
+                                        <ApexPointSeries TItem="ValuePoint"
+                                                         Items="player.PortfolioDateValues"
+                                                         Name="@(player.Email == Email ? "Dig (Portefølje)" : player.Name)"
+                                                         SeriesType="SeriesType.Area"
+                                                         XValue="@(e => e.Date)"
+                                                         YValue="@(e => e.Value)" />
+                                    }
+                                }
+                            </ApexChart>
+                        }
+                        else
+                        {
+                            <div style="text-align: center; padding: var(--spacing-8); color: rgba(214, 228, 249, 0.5); height: 100%; display: flex; align-items: center; justify-content: center;">
+                                <p class="body-md">Ingen historik tilgængelig endnu</p>
+                            </div>
+                        }
+                    </div>
                 </div>
 
-                <div style="height: 500px; position: relative;">
-                    @if (Players.Any(p => p.ValuePoints?.Any() == true))
-                    {
-                        <ApexChart @ref="_chart" TItem="ValuePoint"
-                                   Options="chartOptions"
-                                   Height="500">
+                <div style="flex: 1; min-width: 350px; display: flex; flex-direction: column; gap: 24px;">
 
-                            @foreach (var player in Players.OrderByDescending(p => p.Email == Email))
+                    <div class="card" style="position: relative; z-index: 2;">
+                        <div class="flex-between mb-4">
+                            <h2 class="headline-md">@(DisplayPlayer.Email == Email ? "Din Beholdning" : $"{DisplayPlayer.Name}s Beholdning")</h2>
+
+                            @if (DisplayPlayer.Email == Email)
                             {
-                                @if (player.ValuePoints?.Any() == true)
-                                {
-                                    <ApexPointSeries TItem="ValuePoint"
-                                                     Items="player.ValuePoints"
-                                                     Name="@(player.Email == Email ? "Dig (Portefølje)" : player.Email)"
-                                                     SeriesType="SeriesType.Area"
-                                                     XValue="@(e => e.Date)"
-                                                     YValue="@(e => e.Value)" />
-                                }
+                                <button class="btn btn-secondary btn-sm" @onclick="async () => await AddTransaction()" style="background-color: var(--secondary); color: var(--on-secondary);">+ Tilføj</button>
                             }
-                        </ApexChart>
-                    }
-                    else
-                    {
-                        <div style="text-align: center; padding: var(--spacing-8); color: rgba(214, 228, 249, 0.5); height: 100%; display: flex; align-items: center; justify-content: center;">
-                            <p class="body-md">Ingen historik tilgængelig endnu</p>
                         </div>
-                    }
+
+                        @if (DisplayPlayer.Email != Email)
+                        {
+                            <div class="mb-6">
+                                <button class="btn btn-tertiary btn-xs" @onclick="BackToMyHoldings" style="color: var(--primary);">
+                                    ← Gå tilbage til min beholdning
+                                </button>
+                            </div>
+                        }
+
+                        @if (DisplayPlayer?.Stocks?.Any() == true)
+                        {
+                            <div style="overflow-x: auto;">
+                                <table class="design-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Ticker</th>
+                                            <th>Antal</th>
+                                            <th>Værdi</th>
+                                            @if (DisplayPlayer.Email == Email)
+                                            {
+                                                <th style="text-align: right;">Handling</th>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var stock in DisplayPlayer.Stocks)
+                                        {
+                                            <tr class="surface-container-lowest">
+                                                <td class="data-cell">
+                                                    <div class="flex-center gap-2" style="justify-content: flex-start;">
+                                                        <img src="@GetImgLogo(stock.Ticker)" style="width: 20px; height: 20px; border-radius: 4px;" />
+                                                        @stock.Ticker
+                                                    </div>
+                                                </td>
+                                                <td class="data-cell">@stock.Amount.ToString("N2")</td>
+                                                <td class="data-cell text-secondary">@($"{stock.ValueInTargetCurrency:N2}")</td>
+
+                                                @if (DisplayPlayer.Email == Email)
+                                                {
+                                                    <td style="text-align: right;">
+                                                        <button class="btn btn-tertiary" style="padding: 2px 8px;" @onclick="async () => await AddTransaction(stock)">Sælg</button>
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="body-sm" style="text-align: center; padding: var(--spacing-12) 0; color: rgba(214, 228, 249, 0.5);">
+                                Ingen aktier fundet.
+                            </p>
+                        }
+                    </div>
+
+                    <div class="card">
+                        <h2 class="headline-md mb-6">Top Movers</h2>
+                        @if (DisplayPlayer?.Stocks?.Any() == true)
+                        {
+                            <div class="flex flex-col gap-4">
+                                @* Sort by the absolute percentage gain (highest movement first) *@
+                                @foreach (var stock in DisplayPlayer.Stocks.OrderByDescending(s => Math.Abs(s.GetPercentageGain())).Take(3))
+                                {
+                                    var pctGain = stock.GetPercentageGain();
+                                    var isPositive = pctGain >= 0;
+                                    var colorStyle = isPositive ? "color: #7dffa2;" : "color: #ffb4ab;";
+                                    var prefix = isPositive ? "+" : "";
+
+                                    <div class="surface-container-lowest p-4 flex-between" style="border-radius: var(--radius-md); border-left: 4px solid @(isPositive ? "#7dffa2" : "#ffb4ab");">
+                                        <div class="flex-center gap-3">
+                                            <img src="@GetImgLogo(stock.Ticker)" style="width: 24px; height: 24px; border-radius: 4px;" />
+                                            <div>
+                                                <div class="label-lg" style="font-weight: bold;">@stock.Ticker</div>
+                                                <div class="body-xs text-secondary">@(isPositive ? "Stigende" : "Faldende") position</div>
+                                            </div>
+                                        </div>
+                                        <div style="text-align: right;">
+                                            <div class="label-md text-primary">@($"{stock.ValueInTargetCurrency:N2}") kr</div>
+                                            <div class="body-xs" style="@colorStyle font-weight: bold;">
+                                                @prefix@pctGain.ToString("N2")%
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="body-sm" style="color: rgba(214, 228, 249, 0.5);">Ingen data tilgængelig.</p>
+                        }
+                    </div>
                 </div>
             </div>
         }
-
-        <div class="card mt-10" style="position: relative; z-index: 2;">
-            <div class="flex-between mb-8">
-                <h2 class="headline-md">Din Beholdning</h2>
-                <button class="btn btn-secondary" @onclick="async () => await AddTransaction()" style="background-color: var(--secondary); color: var(--on-secondary);">+ Tilføj Transaktion</button>
-            </div>
-
-            @if (CurrentPlayer?.Stocks?.Any() == true)
-            {
-                <div style="overflow-x: auto;">
-                    <table class="design-table">
-                        <thead>
-                            <tr>
-                                <th>Ticker</th>
-                                <th>Antal</th>
-                                <th>Værdi</th>
-                                <th style="text-align: right;">Handling</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var stock in CurrentPlayer.Stocks)
-                            {
-                                <tr class="surface-container-lowest">
-                                    <td class="data-cell">@stock.Ticker</td>
-                                    <td class="data-cell">@stock.Amount.ToString("N2")</td>
-                                    <td class="data-cell text-secondary">@($"{stock.ValueInTargetCurrency:N2} {targetCurrency}")</td>
-                                    <td style="text-align: right;">
-                                        <button class="btn btn-tertiary" @onclick="async () => await AddTransaction(stock)">Sælg</button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            else
-            {
-                <p class="body-md" style="text-align: center; padding: var(--spacing-12) 0; color: rgba(214, 228, 249, 0.5);">
-                    Du har ikke købt aktier endnu. Klik "Tilføj Transaktion" for at komme i gang.
-                </p>
-            }
-        </div>
     </div>
 </div>
 
@@ -152,33 +250,31 @@
     private ApexChartOptions<ValuePoint> chartOptions = new();
     private List<ParticipantViewModel> Players = [];
     private ParticipantViewModel CurrentPlayer = new();
+    private ParticipantViewModel DisplayPlayer = new(); // The user currently being viewed
     private bool HasLoaded;
-    private string SelectedTimeRange = "5d";
+    private TimeRange SelectedTimeRange = TimeRange.FiveDays;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
     }
 
-    private async Task SetUpValues()
+    private void SelectPlayer(ParticipantViewModel player)
     {
-        try
-        {
-            var allStocks = Players.SelectMany(x => x.Stocks ?? new List<StockViewModel>());
-            foreach (var stock in allStocks)
-            {
-                stock.ValueInTargetCurrency = await _presentation.GetValueInTargetCurrency(stock);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error setting up values: {ex.Message}");
-        }
+        DisplayPlayer = player;
+        StateHasChanged();
     }
+
+    private void BackToMyHoldings()
+    {
+        DisplayPlayer = CurrentPlayer;
+        StateHasChanged();
+    }
+
+
 
     private void SetupChartOptions()
     {
-        // 1. Farve-logik: Sørg for at din egen farve altid er først
         List<string> colors = new();
         string[] colorPalette = { "#bbc6e2", "#ffb4ab", "#a8dadc", "#f1d4b1", "#d7b8ff", "#ffccdd" };
         int colorIndex = 0;
@@ -187,7 +283,7 @@
 
         foreach (var player in sortedPlayers)
         {
-            if (player.Email == Email) colors.Add("#7dffa2"); // Din grønne farve
+            if (player.Email == Email) colors.Add("#7dffa2");
             else
             {
                 colors.Add(colorPalette[colorIndex % colorPalette.Length]);
@@ -211,21 +307,18 @@
                 Gradient = new FillGradient { OpacityFrom = 0.5, OpacityTo = 0.0 }
             },
             Yaxis = new List<YAxis> {
-            new YAxis {
-                // ForceNiceScale = true sammen med de andre herunder sikrer runde tal
-                ForceNiceScale = true,
-                DecimalsInFloat = 0,
-                // Vi fjerner manuel Min/Max for at lade ApexCharts finde de "nærmeste" runde tal
-                // Men vi sætter denne for at sikre, den ikke altid tvinger den ned til 0
-                Labels = new YAxisLabels {
-                    Style = new AxisLabelStyle {
-                        Colors = new List<string> { "rgba(214, 228, 249, 0.6)" },
-                        FontSize = "12px"
-                    },
-                    Formatter = @"value => Math.round(value).toLocaleString('da-DK') + ' kr'"
+                new YAxis {
+                    ForceNiceScale = true,
+                    DecimalsInFloat = 0,
+                    Labels = new YAxisLabels {
+                        Style = new AxisLabelStyle {
+                            Colors = new List<string> { "rgba(214, 228, 249, 0.6)" },
+                            FontSize = "12px"
+                        },
+                        Formatter = @"value => Math.round(value).toLocaleString('da-DK') + ' kr'"
+                    }
                 }
-            }
-        },
+            },
             Xaxis = new XAxis
             {
                 Type = XAxisType.Datetime,
@@ -234,16 +327,9 @@
                     Style = new AxisLabelStyle { Colors = new List<string> { "rgba(214, 228, 249, 0.6)" } }
                 }
             },
-            // Grid Padding er "hemmeligheden" bag at undgå at top/bund bliver klippet
             Grid = new Grid
             {
-                Padding = new Padding
-                {
-                    Top = 10,
-                    Bottom = 100,  // ← big bottom padding to push plot area up
-                    Left = 20,
-                    Right = 20
-                },
+                Padding = new Padding { Top = 10, Bottom = 100, Left = 20, Right = 20 },
                 BorderColor = "rgba(68, 71, 76, 0.1)"
             },
             Legend = new Legend
@@ -260,6 +346,14 @@
             }
         };
     }
+    private async Task SwitchTimeRange(TimeRange t)
+    {
+        SelectedTimeRange = t;
+
+        await _presentation.SetTickerHistory(t);
+
+        await AfterUpdate();
+    }
 
     private async Task LoadData()
     {
@@ -271,18 +365,19 @@
             if (player == null) return;
 
             CurrentPlayer = player;
-            await _presentation.Init(Players, Value.StartCapital);
-            await SetUpValues();
 
-            foreach (var p in Players)
+            // If viewing an opponent, try to update DisplayPlayer with fresh data from the list
+            if (DisplayPlayer != null && !string.IsNullOrEmpty(DisplayPlayer.Email))
             {
-                if (p.ValuePoints == null) p.ValuePoints = new List<ValuePoint>();
+                DisplayPlayer = Players.FirstOrDefault(p => p.Email == DisplayPlayer.Email) ?? CurrentPlayer;
+            }
+            else
+            {
+                DisplayPlayer = CurrentPlayer;
             }
 
-            await _presentation.LoadHistoricalData(GenerateDateRangeForTimespan(SelectedTimeRange));
+            await _presentation.Init(Players, Value.StartCapital, SelectedTimeRange);
 
-            // Vi genberegner chart options nu hvor vi har data
-            SetupChartOptions();
             await AfterUpdate();
             HasLoaded = true;
         }
@@ -305,30 +400,28 @@
         catch (Exception ex) { Console.WriteLine($"Error: {ex.Message}"); }
     }
 
-    private async Task SelectTimeRange(string timeRange)
-    {
-        SelectedTimeRange = timeRange;
-        List<DateTime> dates = GenerateDateRangeForTimespan(SelectedTimeRange);
-        await _presentation.LoadHistoricalData(dates);
 
-        // Vigtigt: Genberegn skala når tidsinterval ændres
-        SetupChartOptions();
-        await AfterUpdate();
-    }
 
     private async Task AfterUpdate()
     {
+        SetupChartOptions();
         StateHasChanged();
         if (_chart is not null) await _chart.UpdateSeriesAsync();
     }
 
-    private List<DateTime> GenerateDateRangeForTimespan(string timeRange)
+    private List<DateTime> GenerateDateRangeForTimespan(TimeRange t)
     {
+        string timeRange = t.Value;
         int daysBack = timeRange switch { "1d" => 1, "5d" => 5, "1m" => 30, "3m" => 90, "1y" => 365, _ => 5 };
         return Enumerable.Range(0, daysBack + 1).Select(i => DateTime.Now.AddDays(-i)).OrderBy(d => d).ToList();
     }
 
-    private string GetTimeRangeButtonClass(string range) => $"btn {(SelectedTimeRange == range ? "btn-primary" : "btn-tertiary")}";
+    private string GetImgLogo(string ticker)
+    {
+        return $"https://img.logo.dev/ticker/{ticker}?token=pk_fpJo-h0JQ6Kd9_FH96Ixrw";
+    }
+
+    private string GetTimeRangeButtonClass(TimeRange t) => $"btn {(SelectedTimeRange == t ? "btn-primary" : "btn-tertiary")}";
     private List<ParticipantViewModel> GetPlayersByTotalValue() => Players.OrderByDescending(p => GetPlayerTotalValue(p)).ToList();
     private decimal GetPlayerTotalValue(ParticipantViewModel player) => (decimal)player.Capital + player.Stocks.Sum(s => (decimal)s.ValueInTargetCurrency);
 }

@@ -1,4 +1,5 @@
 ﻿using StockApp.Models;
+using StockLib;
 
 namespace StockApp.Services;
 
@@ -12,5 +13,8 @@ public interface IGameService
     Task<IEnumerable<YahooQuoteResult>> SearchStocks(string search, CancellationToken ct);
     Task<(bool Success, string? ErrorMessage)> AddTransaction(TransactionViewModel transaction, string gameId);
     Task<Quote> GetQuote(string ticker);
-    Task<List<ValuePoint>> GetHistory(string ticker, DateTime fromDate);
+    Task<List<ValuePoint>> GetHistory(string ticker, TimeRange t);
+
+    Task UpdatePlayerName(string participantId, string newName);
+
 }

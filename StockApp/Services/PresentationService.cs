@@ -1,5 +1,7 @@
-﻿using StockApp.Models;
+using StockApp.Models;
+using StockLib;
 using StockTrackingApi.Services;
+using System.Collections.Concurrent;
 
 namespace StockApp.Services;
 
@@ -7,98 +9,220 @@ public class PresentationService
 {
     private readonly IExchangeRateService _exchangeService;
     private readonly IGameService _gameService;
-    private List<ParticipantViewModel> _participants = [];
+    private List<ParticipantViewModel> _participants = new();
+
+    // Cache entry with timestamp so we can expire entries when needed
+    private class CacheEntry
+    {
+        public List<ValuePoint> Data { get; set; } = new();
+        public DateTime FetchedAtUtc { get; set; } = DateTime.UtcNow;
+    }
+
+    private readonly ConcurrentDictionary<string, CacheEntry> _historicalDataCache = new();
+    private TimeSpan _cacheTtl = TimeSpan.FromMinutes(30);
+    private TimeRange _currentTimeRange = TimeRange.FiveDays;
+
     public string TargetCurrency { get; set; } = "DKK";
     private decimal GameCapital { get; set; } = 0;
+
     public PresentationService(IExchangeRateService exchangeService, IGameService gameService)
     {
         _exchangeService = exchangeService;
         _gameService = gameService;
     }
-    public async Task Init(List<ParticipantViewModel> participants, decimal gameCapital)
+
+    // Backwards-compatible Init overloads. Default to 5d if no range provided.
+    public Task Init(List<ParticipantViewModel> participants, decimal gameCapital)
+        => Init(participants, gameCapital, TimeRange.FiveDays);
+
+    public async Task Init(List<ParticipantViewModel> participants, decimal gameCapital, TimeRange t)
     {
         GameCapital = gameCapital;
-        _participants = participants;
+        _participants = participants ?? new List<ParticipantViewModel>();
+        _currentTimeRange = t ?? TimeRange.FiveDays;
+
+        await SetStockValues(_currentTimeRange);
+
+        // Remove debug code that can throw when participant or stocks are empty
     }
-    public async Task LoadHistoricalData(List<DateTime> dates)
+
+    private async Task<decimal> GetValueInTargetCurrency(StockViewModel stock, string targetCurrency = "DKK")
     {
-        foreach (var p in _participants)
-        {
-            p.ValuePoints = await GetValueForDateTimes(dates, TargetCurrency, GameCapital, p.Transactions);
-        }
-    }
-    public async Task<decimal> GetValueInTargetCurrency(StockViewModel stock, string targetCurrency = "DKK")
-    {
+        if (stock == null || string.IsNullOrEmpty(stock.Ticker))
+            return 0;
+
         Quote q = await _gameService.GetQuote(stock.Ticker);
+        if (q == null) return 0;
 
         decimal currentValue = stock.GetCurrentValue(q);
-
         decimal finalValue = currentValue;
 
-        if (q.Currency != targetCurrency)
+        stock.CurrentExchangeRate = 1;
+
+        if (!string.Equals(q.Currency, targetCurrency, StringComparison.OrdinalIgnoreCase))
         {
             var exchangeRate = await _exchangeService.ExchangeRate(q.Currency, targetCurrency);
+            stock.CurrentExchangeRate = exchangeRate;
             finalValue = currentValue * exchangeRate;
         }
+
         return finalValue;
     }
-    public async Task<List<ValuePoint>> GetValueForDateTimes(List<DateTime> dates, string targetCurrency = "DKK", decimal initialCash = 0, IEnumerable<TransactionViewModel>? transactions = null)
+
+    private decimal CalculateRemainingCash(DateTime date, List<TransactionViewModel> transactions)
+    {
+        decimal cashSpent = 0;
+
+        foreach (var transaction in transactions?.Where(t => t.Date.Date <= date.Date) ?? Enumerable.Empty<TransactionViewModel>())
+        {
+            decimal transactionAmount = (decimal)(transaction.Amount * (double)transaction.PricePerUnit);
+
+            if (transaction.IsBuy)
+                cashSpent += transactionAmount;
+            else
+                cashSpent -= transactionAmount;
+        }
+
+        return GameCapital - cashSpent;
+    }
+
+    private async Task SetStockValues(TimeRange t)
+    {
+        await SetTickerHistory(t);
+
+        try
+        {
+            var allStocks = _participants.SelectMany(x => x.Stocks ?? new List<StockViewModel>());
+            foreach (var stock in allStocks)
+            {
+                stock.TimeRange = t;
+                stock.ValueInTargetCurrency = await GetValueInTargetCurrency(stock, TargetCurrency);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error setting up values: {ex.Message}");
+        }
+    }
+
+    private async Task SetPlayerValues(TimeRange t)
+    {
+        var dates = GenerateDateRangeForTimespan(t);
+        foreach (var player in _participants)
+        {
+            player.PortfolioDateValues = await GetValueForDateTimes(player, dates);
+        }
+    }
+
+    private List<DateTime> GenerateDateRangeForTimespan(TimeRange t)
+    {
+        int daysBack = t?.Value switch { "1d" => 1, "5d" => 5, "1m" => 30, "3m" => 90, "1y" => 365, _ => 5 };
+        return Enumerable.Range(0, daysBack + 1).Select(i => DateTime.Now.AddDays(-i)).OrderBy(d => d).ToList();
+    }
+
+    public async Task SetTickerHistory(TimeRange t)
+    {
+        if (t == null) t = TimeRange.FiveDays;
+        _currentTimeRange = t;
+
+        var allTickers = _participants
+            .SelectMany(p => p.Transactions?.Select(tr => tr.Ticker) ?? Enumerable.Empty<string>())
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct()
+            .ToList();
+
+        foreach (var ticker in allTickers)
+        {
+            string key = TickerToCacheKey(ticker, t);
+
+            if (_historicalDataCache.TryGetValue(key, out var entry))
+            {
+                // If cache entry exists and is fresh, skip
+                if ((DateTime.UtcNow - entry.FetchedAtUtc) < _cacheTtl)
+                    continue;
+            }
+
+            try
+            {
+                var historicalValues = await _gameService.GetHistory(ticker, t);
+                var cacheEntry = new CacheEntry { Data = historicalValues ?? new List<ValuePoint>(), FetchedAtUtc = DateTime.UtcNow };
+                _historicalDataCache[key] = cacheEntry;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching history for {ticker}: {ex.Message}");
+                _historicalDataCache[key] = new CacheEntry { Data = new List<ValuePoint>(), FetchedAtUtc = DateTime.UtcNow };
+            }
+        }
+
+        // Attach cached history to stock view models
+        foreach (var p in _participants)
+        {
+            foreach (var stock in p.Stocks ?? Enumerable.Empty<StockViewModel>())
+            {
+                var key = TickerToCacheKey(stock.Ticker, t);
+                if (_historicalDataCache.TryGetValue(key, out var entry))
+                    stock.HistoricalValues = entry.Data ?? new List<ValuePoint>();
+                else
+                    stock.HistoricalValues = new List<ValuePoint>();
+            }
+        }
+
+        await SetPlayerValues(t);
+    }
+
+    private async Task<List<ValuePoint>> GetValueForDateTimes(ParticipantViewModel p, List<DateTime> dates, string targetCurrency = "DKK")
     {
         var result = new List<ValuePoint>();
-        var transactionList = transactions?.ToList() ?? new List<TransactionViewModel>();
 
-        // Get all unique tickers from transactions
-        var tickers = transactionList.Select(t => t.Ticker).Distinct().ToList();
-
-        // Cache history and quotes for all stocks to avoid repeated calls
-        var stockHistoryCache = new Dictionary<string, List<ValuePoint>>();
-        var stockExchangeRateCache = new Dictionary<string, decimal>();
-
-        foreach (var ticker in tickers)
-        {
-            var history = await _gameService.GetHistory(ticker, dates.Min());
-            stockHistoryCache[ticker] = history;
-            var quote = await _gameService.GetQuote(ticker);
-            var exchangeRate = await GetExchangeRateIfNeeded(quote.Currency, targetCurrency);
-            stockExchangeRateCache[ticker] = exchangeRate;
-        }
+        if (p == null)
+            return result;
 
         foreach (var date in dates)
         {
             decimal portfolioValue = 0;
 
-            // Calculate holdings for each stock at this date from transactions
-            var holdingsByTicker = new Dictionary<string, decimal>();
-            foreach (var transaction in transactionList.Where(t => t.Date.Date <= date.Date))
-            {
-                if (!holdingsByTicker.ContainsKey(transaction.Ticker))
-                    holdingsByTicker[transaction.Ticker] = 0;
-
-                decimal amount = transaction.IsBuy ? (decimal)transaction.Amount : -(decimal)transaction.Amount;
-                holdingsByTicker[transaction.Ticker] += amount;
-            }
-
-            // Calculate stock values for this date using holdings and cached data
-            foreach (var (ticker, amount) in holdingsByTicker)
-            {
-                if (amount > 0) // Only value if we own shares
+            var holdingsOnDate = p.Transactions?
+                .Where(t => t.Date.Date <= date.Date)
+                .GroupBy(t => t.Ticker)
+                .Select(g => new
                 {
-                    var history = stockHistoryCache[ticker];
-                    var exchangeRate = stockExchangeRateCache[ticker];
+                    Ticker = g.Key,
+                    Amount = g.Sum(t => t.IsBuy ? (decimal)t.Amount : -(decimal)t.Amount)
+                }) ?? Enumerable.Empty<dynamic>();
 
-                    // Try to get exact date match, otherwise use the most recent data point before this date
-                    var valuePoint = history.FirstOrDefault(h => h.Date.Date == date.Date)
-                        ?? history.Where(h => h.Date.Date <= date.Date).OrderByDescending(h => h.Date).FirstOrDefault();
+            foreach (var holding in holdingsOnDate)
+            {
+                if (holding.Amount <= 0) continue;
 
-                    if (valuePoint != null)
+                // Try to find cached history for this ticker
+                var key = _historicalDataCache.Keys.FirstOrDefault(k => k.StartsWith($"{holding.Ticker}_"));
+                CacheEntry entry = null;
+                if (!string.IsNullOrEmpty(key))
+                {
+                    _historicalDataCache.TryGetValue(key, out entry);
+                }
+
+                var tickerHistory = entry?.Data;
+
+                if (tickerHistory != null && tickerHistory.Any())
+                {
+                    var pricePoint = tickerHistory.Where(h => h.Date.Date <= date.Date)
+                                                  .OrderByDescending(h => h.Date)
+                                                  .FirstOrDefault();
+
+                    if (pricePoint != null)
                     {
-                        portfolioValue += (valuePoint.Value * exchangeRate) * amount;
+                        // Use current exchange rate from stock model if available; historical FX not implemented
+                        var stockVM = p.Stocks?.FirstOrDefault(s => s.Ticker == holding.Ticker);
+                        decimal rate = stockVM?.CurrentExchangeRate ?? 1;
+
+                        portfolioValue += (pricePoint.Value * rate) * holding.Amount;
                     }
                 }
             }
 
-            // Calculate remaining cash at this date
-            decimal remainingCash = CalculateRemainingCash(date, initialCash, transactionList, stockExchangeRateCache);
+            decimal remainingCash = CalculateRemainingCash(date, p.Transactions ?? new List<TransactionViewModel>());
             portfolioValue += remainingCash;
 
             result.Add(new ValuePoint { Date = date, Value = portfolioValue });
@@ -107,31 +231,10 @@ public class PresentationService
         return result;
     }
 
-    private async Task<decimal> GetExchangeRateIfNeeded(string fromCurrency, string targetCurrency)
-    {
-        if (fromCurrency == targetCurrency)
-            return 1;
+    private string TickerToCacheKey(string ticker, TimeRange t) => $"{ticker}_{t.Value}";
 
-        return await _exchangeService.ExchangeRate(fromCurrency, targetCurrency);
-    }
-    private decimal CalculateRemainingCash(DateTime date, decimal initialCash, List<TransactionViewModel> transactions, Dictionary<string, decimal> exchangeRateCache)
-    {
-        decimal cashSpent = 0;
+    // Utility: clear cache or adjust TTL
+    public void ClearHistoryCache() => _historicalDataCache.Clear();
 
-        foreach (var transaction in transactions.Where(t => t.Date.Date <= date.Date))
-        {
-            decimal transactionAmount = (decimal)(transaction.Amount * transaction.PricePerUnit);
-
-            if (transaction.IsBuy)
-            {
-                cashSpent += transactionAmount;
-            }
-            else
-            {
-                cashSpent -= transactionAmount;
-            }
-        }
-
-        return initialCash - cashSpent;
-    }
+    public void SetCacheTtl(TimeSpan ttl) => _cacheTtl = ttl;
 }

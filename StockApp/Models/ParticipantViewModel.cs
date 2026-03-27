@@ -7,6 +7,6 @@ public class ParticipantViewModel
     public double Capital { get; set; }
     public List<TransactionViewModel> Transactions { get; set; } = [];
     public List<StockViewModel> Stocks { get; set; }
-    
-    public List<ValuePoint> ValuePoints { get; set; }
+    public List<ValuePoint> PortfolioDateValues { get; set; }
+
 }

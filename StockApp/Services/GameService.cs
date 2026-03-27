@@ -1,4 +1,5 @@
 ﻿using StockApp.Models;
+using StockLib;
 using System.Net.Http.Json;
 using System.Transactions;
 
@@ -65,11 +66,15 @@ public class GameService : IGameService
     {
         return await _client.GetFromJsonAsync<Quote>($"api/stock/quote?ticker={ticker}");
     }
-    public async Task<List<ValuePoint>> GetHistory(string ticker, DateTime fromDate)
+    public async Task<List<ValuePoint>> GetHistory(string ticker, TimeRange t)
     {
 
-        var res = await _client.GetFromJsonAsync<List<ValuePoint>>($"api/stock/quote/history?ticker={ticker}&fromDate={fromDate.Ticks}");
+        var res = await _client.GetFromJsonAsync<List<ValuePoint>>($"api/stock/quote/history?ticker={ticker}&tRangeValue={t.Value}");
         return res ?? new List<ValuePoint>();
 
+    }
+    public async Task UpdatePlayerName(string participantId, string newName)
+    {
+        var res = await _client.PostAsJsonAsync($"api/stock/player/update?participantId={participantId}", newName);
     }
 }
