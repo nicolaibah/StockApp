@@ -88,16 +88,22 @@ public class PresentationService
 
     private async Task SetStockValues(TimeRange t)
     {
+        // Ensure historical data is fetched and attached to stock models
         await SetTickerHistory(t);
 
         try
         {
+            // Set current values and exchange rates for each stock before calculating player time series
             var allStocks = _participants.SelectMany(x => x.Stocks ?? new List<StockViewModel>());
             foreach (var stock in allStocks)
             {
                 stock.TimeRange = t;
                 stock.ValueInTargetCurrency = await GetValueInTargetCurrency(stock, TargetCurrency);
             }
+
+            // Now that current exchange rates and values are available on stock view models,
+            // calculate player portfolio time series so historical points can use the correct FX.
+            await SetPlayerValues(t);
         }
         catch (Exception ex)
         {
@@ -167,8 +173,6 @@ public class PresentationService
                     stock.HistoricalValues = new List<ValuePoint>();
             }
         }
-
-        await SetPlayerValues(t);
     }
 
     private async Task<List<ValuePoint>> GetValueForDateTimes(ParticipantViewModel p, List<DateTime> dates, string targetCurrency = "DKK")
@@ -237,4 +241,13 @@ public class PresentationService
     public void ClearHistoryCache() => _historicalDataCache.Clear();
 
     public void SetCacheTtl(TimeSpan ttl) => _cacheTtl = ttl;
+
+    // Public helper to update everything for a new time range: fetch history, set current
+    // stock values (including exchange rates) and recalculate player time series.
+    public async Task UpdateForTimeRange(TimeRange t)
+    {
+        if (t == null) t = TimeRange.FiveDays;
+        _currentTimeRange = t;
+        await SetStockValues(t);
+    }
 }

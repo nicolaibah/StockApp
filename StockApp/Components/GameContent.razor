@@ -66,7 +66,8 @@
                                         @($"{totalValue:N2} kr")
                                         @{
                                             // Optional: Show if the player is overall in profit or loss
-                                            var initial = player.Stocks.Sum(s => s.GetValueInvested()) + (decimal)player.Capital;
+                                        // Use the game's starting capital as the baseline for gain/loss
+                                        var initial = (decimal)Value.StartCapital;
                                             var totalGain = totalValue - initial;
                                             var gainColor = totalGain >= 0 ? "#7dffa2" : "#ffb4ab";
                                         }
@@ -350,7 +351,8 @@
     {
         SelectedTimeRange = t;
 
-        await _presentation.SetTickerHistory(t);
+        // Ask presentation service to update data for the new time range (history, current values, player series)
+        await _presentation.UpdateForTimeRange(t);
 
         await AfterUpdate();
     }
