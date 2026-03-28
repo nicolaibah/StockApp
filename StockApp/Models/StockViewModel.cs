@@ -71,8 +71,8 @@ public class StockViewModel
 
         return TimeRange.Value switch
         {
-            // For 1 day: Try to get the previous closing price (second to last)
-            "1d" => count >= 2 ? sorted[^2] : sorted[0],
+            // For 1 day: Use the first (oldest) intraday point as the baseline (market open)
+            "1d" => sorted[0],
 
             // For 5 days: Use the oldest point in the 5-day fetch as the baseline
             "5d" => sorted[0],
