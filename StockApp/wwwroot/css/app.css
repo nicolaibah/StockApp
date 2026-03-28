@@ -323,6 +323,10 @@ select {
     transition: all 0.2s ease-in-out;
 }
 
+input[type="date"] {
+    color-scheme: dark;
+}
+
 input::placeholder {
     color: rgba(214, 228, 249, 0.5);
 }
