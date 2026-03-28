@@ -2,7 +2,6 @@
 @using MudBlazor
 @using StockApp.Models
 @using StockApp.Services
-@using StockLib
 
 <style>
     /* Prevent white space at the bottom and add hover effect for scoreboard */
@@ -404,16 +403,38 @@
 
         if (stockModel?.HistoricalValues?.Any() == true)
         {
-            // Use actual historical data points directly instead of synthetic dates
-            // to avoid placing the current value at dates with no historical data
-            SingleStockSeries = stockModel.HistoricalValues
-                .OrderBy(h => h.Date)
-                .Select(h => new ValuePoint
-                {
-                    Date = h.Date,
-                    Value = h.Value * (stockModel.CurrentExchangeRate)
-                })
-                .ToList();
+            var rate = stockModel.CurrentExchangeRate;
+
+            if (SelectedTimeRange?.Value == "1d")
+            {
+                // Intraday: use all data points (no overnight gap within a single day)
+                SingleStockSeries = stockModel.HistoricalValues
+                    .OrderBy(h => h.Date)
+                    .Select(h => new ValuePoint
+                    {
+                        Date = h.Date,
+                        Value = h.Value * rate
+                    })
+                    .ToList();
+            }
+            else
+            {
+                // Multi-day: use daily closing prices to avoid overnight gaps
+                // on the datetime axis (the ramp between 15:45 → 08:00 next day)
+                SingleStockSeries = stockModel.HistoricalValues
+                    .GroupBy(h => h.Date.Date)
+                    .OrderBy(g => g.Key)
+                    .Select(g =>
+                    {
+                        var closingPoint = g.OrderByDescending(h => h.Date).First();
+                        return new ValuePoint
+                        {
+                            Date = closingPoint.Date,
+                            Value = closingPoint.Value * rate
+                        };
+                    })
+                    .ToList();
+            }
         }
 
         await AfterUpdate();

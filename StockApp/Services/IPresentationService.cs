@@ -1,5 +1,4 @@
 using StockApp.Models;
-using StockLib;
 
 namespace StockApp.Services;
 

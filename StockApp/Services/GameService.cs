@@ -1,5 +1,4 @@
 ﻿using StockApp.Models;
-using StockLib;
 using System.Net.Http.Json;
 
 namespace StockApp.Services;

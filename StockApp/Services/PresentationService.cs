@@ -1,7 +1,5 @@
 using StockApp.Models;
-using StockLib;
 using System.Collections.Concurrent;
-
 namespace StockApp.Services;
 
 public class PresentationService : IPresentationService

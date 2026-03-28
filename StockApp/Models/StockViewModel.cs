@@ -1,6 +1,4 @@
-﻿using StockLib;
-
-namespace StockApp.Models;
+﻿namespace StockApp.Models;
 
 public class StockViewModel
 {
