@@ -123,7 +123,13 @@ public class PresentationService
     private List<DateTime> GenerateDateRangeForTimespan(TimeRange t)
     {
         int daysBack = t?.Value switch { "1d" => 1, "5d" => 5, "1m" => 30, "3m" => 90, "1y" => 365, _ => 5 };
-        return Enumerable.Range(0, daysBack + 1).Select(i => DateTime.Now.AddDays(-i)).OrderBy(d => d).ToList();
+        IEnumerable<DateTime> dates = Enumerable.Range(0, daysBack + 1).Select(i => DateTime.Now.AddDays(-i)).OrderBy(d => d);
+
+        // Skip weekends for multi-day ranges (markets are closed on Saturday/Sunday)
+        if (t?.Value != "1d")
+            dates = dates.Where(d => d.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday);
+
+        return dates.ToList();
     }
 
     public async Task SetTickerHistory(TimeRange t)
