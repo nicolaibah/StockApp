@@ -5,7 +5,6 @@ using MudBlazor.Services;
 using StockApp;
 using StockApp.Infrastructure;
 using StockApp.Services;
-using StockTrackingApi.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -32,7 +31,7 @@ builder.Services.AddHttpClient("Api", client =>
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("Api"));
 builder.Services.AddTransient<IGameService, GameService>();
-builder.Services.AddScoped<PresentationService>();
+builder.Services.AddScoped<IPresentationService, PresentationService>();
 builder.Services.AddHttpClient<IExchangeRateService, ExchangeRateService>();
 builder.Services.AddMudServices();
 

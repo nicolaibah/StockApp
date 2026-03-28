@@ -252,14 +252,14 @@
 
     [Inject] private IGameService _gameService { get; set; }
     [Inject] private IDialogService _dialogService { get; set; }
-    [Inject] private PresentationService _presentation { get; set; }
+    [Inject] private IPresentationService _presentation { get; set; }
 
     private ApexChart<ValuePoint> _chart = new();
     private string targetCurrency = "DKK";
     private ApexChartOptions<ValuePoint> chartOptions = new();
     private List<ParticipantViewModel> Players = [];
     private ParticipantViewModel CurrentPlayer = new();
-    private ParticipantViewModel DisplayPlayer = new(); // The user currently being viewed
+    private ParticipantViewModel DisplayPlayer = new();
     private bool HasLoaded;
     private TimeRange SelectedTimeRange = TimeRange.FiveDays;
     private string SelectedTickerOnChart = string.Empty;
@@ -286,8 +286,8 @@
 
     private void SetupChartOptions()
     {
-        List<string> colors = new();
-        string[] colorPalette = { "#bbc6e2", "#ffb4ab", "#a8dadc", "#f1d4b1", "#d7b8ff", "#ffccdd" };
+        List<string> colors = [];
+        string[] colorPalette = ["#bbc6e2", "#ffb4ab", "#a8dadc", "#f1d4b1", "#d7b8ff", "#ffccdd"];
         int colorIndex = 0;
 
         var sortedPlayers = Players.OrderByDescending(p => p.Email == Email).ToList();
@@ -390,16 +390,16 @@
         if (!string.IsNullOrEmpty(SelectedTickerOnChart) && SelectedTickerOnChart == ticker)
         {
             SelectedTickerOnChart = string.Empty;
-            SingleStockSeries = new List<ValuePoint>();
+            SingleStockSeries = [];
             await AfterUpdate();
             return;
         }
 
         SelectedTickerOnChart = ticker;
-        SingleStockSeries = new List<ValuePoint>();
+        SingleStockSeries = [];
 
         // Find a stock model that contains historical values for this ticker
-        var stockModel = Players.SelectMany(p => p.Stocks ?? new List<StockViewModel>())
+        var stockModel = Players.SelectMany(p => p.Stocks ?? [])
                                 .FirstOrDefault(s => string.Equals(s.Ticker, ticker, StringComparison.OrdinalIgnoreCase));
 
         if (stockModel?.HistoricalValues?.Any() == true)

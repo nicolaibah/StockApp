@@ -156,14 +156,11 @@
         if (res.Success)
         {
             MudDialog.Close(DialogResult.Ok(transactionViewModel));
-
         }
         else
         {
             Snackbar.Add(res.ErrorMessage ?? "Der skete en fejl. Prøv igen senere.", Severity.Error);
         }
-
-
     }
 
     private string GetTicker() => !string.IsNullOrEmpty(Ticker) ? Ticker : SelectedStock?.Symbol ?? "";

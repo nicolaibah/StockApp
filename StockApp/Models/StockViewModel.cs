@@ -1,5 +1,4 @@
 ﻿using StockLib;
-using System.Linq;
 
 namespace StockApp.Models;
 
@@ -17,7 +16,7 @@ public class StockViewModel
     public decimal ValueInTargetCurrency { get; set; }
 
     // Historical points fetched from the API
-    public List<ValuePoint> HistoricalValues { get; set; } = new();
+    public List<ValuePoint> HistoricalValues { get; set; } = [];
 
     /// <summary>
     /// Calculates the initial cost basis (what you paid for the shares).

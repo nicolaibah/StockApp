@@ -6,7 +6,7 @@ namespace StockApp.Services;
 
 public class GameService : IGameService
 {
-    private HttpClient _client;
+    private readonly HttpClient _client;
     public GameService(IHttpClientFactory _factory)
     {
         _client = _factory.CreateClient("Api");
@@ -27,8 +27,7 @@ public class GameService : IGameService
     }
     public async Task<List<GameViewModel>> GetGames()
     {
-        List<GameViewModel> games = await _client.GetFromJsonAsync<List<GameViewModel>>("api/stock/games");
-        return games;
+        return await _client.GetFromJsonAsync<List<GameViewModel>>("api/stock/games");
     }
     public async Task AddPlayerToGame(string gameId, string email)
     {
@@ -36,18 +35,15 @@ public class GameService : IGameService
     }
     public async Task<List<GameViewModel>> GetPlayerGames()
     {
-        List<GameViewModel> games = await _client.GetFromJsonAsync<List<GameViewModel>>("api/stock/player/games");
-        return games;
+        return await _client.GetFromJsonAsync<List<GameViewModel>>("api/stock/player/games");
     }
     public async Task<List<ParticipantViewModel>> GetPlayers(string gameId)
     {
-        List<ParticipantViewModel> players = await _client.GetFromJsonAsync<List<ParticipantViewModel>>($"api/stock/games/players?gameId={gameId}");
-        return players;
+        return await _client.GetFromJsonAsync<List<ParticipantViewModel>>($"api/stock/games/players?gameId={gameId}");
     }
     public async Task<IEnumerable<YahooQuoteResult>> SearchStocks(string search, CancellationToken _)
     {
-        List<YahooQuoteResult> symbols = await _client.GetFromJsonAsync<List<YahooQuoteResult>>($"api/stock/search?search={search}");
-        return symbols;
+        return await _client.GetFromJsonAsync<List<YahooQuoteResult>>($"api/stock/search?search={search}");
     }
     public async Task<(bool Success, string? ErrorMessage)> AddTransaction(TransactionViewModel transaction, string gameId)
     {
@@ -67,13 +63,11 @@ public class GameService : IGameService
     }
     public async Task<List<ValuePoint>> GetHistory(string ticker, TimeRange t)
     {
-
         var res = await _client.GetFromJsonAsync<List<ValuePoint>>($"api/stock/quote/history?ticker={ticker}&tRangeValue={t.Value}");
-        return res ?? new List<ValuePoint>();
-
+        return res ?? [];
     }
     public async Task UpdatePlayerName(string participantId, string newName)
     {
-        var res = await _client.PostAsJsonAsync($"api/stock/player/update?participantId={participantId}", newName);
+        await _client.PostAsJsonAsync($"api/stock/player/update?participantId={participantId}", newName);
     }
 }

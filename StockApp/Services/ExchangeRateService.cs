@@ -1,7 +1,6 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 
-namespace StockTrackingApi.Services;
-
+namespace StockApp.Services;
 
 public class ExchangeRateService : IExchangeRateService
 {
@@ -14,19 +13,19 @@ public class ExchangeRateService : IExchangeRateService
 
     public async Task<decimal> ExchangeRate(string fromCurrency, string targetCurrency)
     {
-        string url = $"https://api.frankfurter.dev/v1/latest?base={fromCurrency.ToUpper()}&symbols={targetCurrency.ToUpper()}";
+        string from = fromCurrency.ToUpper();
+        string target = targetCurrency.ToUpper();
+        string url = $"https://api.frankfurter.dev/v1/latest?base={from}&symbols={target}";
 
         var response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
 
         string jsonResponse = await response.Content.ReadAsStringAsync();
 
-        // Use JsonDocument for a quick, low-allocation way to grab a nested value
         using var doc = JsonDocument.Parse(jsonResponse);
         var rates = doc.RootElement.GetProperty("rates");
 
-        // Access the property by the string name provided in targetCurrency
-        if (rates.TryGetProperty(targetCurrency.ToUpper(), out JsonElement rateValue))
+        if (rates.TryGetProperty(target, out JsonElement rateValue))
         {
             return rateValue.GetDecimal();
         }

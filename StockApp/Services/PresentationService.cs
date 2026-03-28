@@ -1,20 +1,18 @@
 using StockApp.Models;
 using StockLib;
-using StockTrackingApi.Services;
 using System.Collections.Concurrent;
 
 namespace StockApp.Services;
 
-public class PresentationService
+public class PresentationService : IPresentationService
 {
     private readonly IExchangeRateService _exchangeService;
     private readonly IGameService _gameService;
-    private List<ParticipantViewModel> _participants = new();
+    private List<ParticipantViewModel> _participants = [];
 
-    // Cache entry with timestamp so we can expire entries when needed
     private class CacheEntry
     {
-        public List<ValuePoint> Data { get; set; } = new();
+        public List<ValuePoint> Data { get; set; } = [];
         public DateTime FetchedAtUtc { get; set; } = DateTime.UtcNow;
     }
 
@@ -38,7 +36,7 @@ public class PresentationService
     public async Task Init(List<ParticipantViewModel> participants, decimal gameCapital, TimeRange t)
     {
         GameCapital = gameCapital;
-        _participants = participants ?? new List<ParticipantViewModel>();
+        _participants = participants ?? [];
         _currentTimeRange = t ?? TimeRange.FiveDays;
 
         await SetStockValues(_currentTimeRange);
@@ -94,7 +92,7 @@ public class PresentationService
         try
         {
             // Set current values and exchange rates for each stock before calculating player time series
-            var allStocks = _participants.SelectMany(x => x.Stocks ?? new List<StockViewModel>());
+            var allStocks = _participants.SelectMany(x => x.Stocks ?? []);
             foreach (var stock in allStocks)
             {
                 stock.TimeRange = t;
@@ -157,13 +155,13 @@ public class PresentationService
             try
             {
                 var historicalValues = await _gameService.GetHistory(ticker, t);
-                var cacheEntry = new CacheEntry { Data = historicalValues ?? new List<ValuePoint>(), FetchedAtUtc = DateTime.UtcNow };
+                var cacheEntry = new CacheEntry { Data = historicalValues ?? [], FetchedAtUtc = DateTime.UtcNow };
                 _historicalDataCache[key] = cacheEntry;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error fetching history for {ticker}: {ex.Message}");
-                _historicalDataCache[key] = new CacheEntry { Data = new List<ValuePoint>(), FetchedAtUtc = DateTime.UtcNow };
+                _historicalDataCache[key] = new CacheEntry { Data = [], FetchedAtUtc = DateTime.UtcNow };
             }
         }
 
@@ -174,9 +172,9 @@ public class PresentationService
             {
                 var key = TickerToCacheKey(stock.Ticker, t);
                 if (_historicalDataCache.TryGetValue(key, out var entry))
-                    stock.HistoricalValues = entry.Data ?? new List<ValuePoint>();
+                    stock.HistoricalValues = entry.Data ?? [];
                 else
-                    stock.HistoricalValues = new List<ValuePoint>();
+                    stock.HistoricalValues = [];
             }
         }
     }
@@ -199,7 +197,7 @@ public class PresentationService
                 {
                     Ticker = g.Key,
                     Amount = g.Sum(t => t.IsBuy ? t.Amount : -t.Amount)
-                }) ?? Enumerable.Empty<dynamic>();
+                }) ?? [];
 
             foreach (var holding in holdingsOnDate)
             {
@@ -228,7 +226,7 @@ public class PresentationService
                 }
             }
 
-            decimal remainingCash = CalculateRemainingCash(date, p.Transactions ?? new List<TransactionViewModel>());
+            decimal remainingCash = CalculateRemainingCash(date, p.Transactions ?? []);
             portfolioValue += remainingCash;
 
             result.Add(new ValuePoint { Date = date, Value = portfolioValue });

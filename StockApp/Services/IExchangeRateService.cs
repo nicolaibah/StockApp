@@ -1,8 +1,6 @@
-﻿namespace StockTrackingApi.Services;
+﻿namespace StockApp.Services;
 
 public interface IExchangeRateService
 {
-    public Task<decimal> ExchangeRate(string fromCurrency, string targetCurrency);
-
-
+    Task<decimal> ExchangeRate(string fromCurrency, string targetCurrency);
 }
