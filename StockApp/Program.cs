@@ -32,8 +32,8 @@ builder.Services.AddHttpClient("Api", client =>
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("Api"));
 builder.Services.AddTransient<IGameService, GameService>();
-builder.Services.AddTransient<PresentationService>();
-builder.Services.AddTransient<IExchangeRateService, ExchangeRateService>();
+builder.Services.AddScoped<PresentationService>();
+builder.Services.AddHttpClient<IExchangeRateService, ExchangeRateService>();
 builder.Services.AddMudServices();
 
 await builder.Build().RunAsync();

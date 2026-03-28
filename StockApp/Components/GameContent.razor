@@ -473,19 +473,6 @@
         if (_chart is not null) await _chart.UpdateSeriesAsync();
     }
 
-    private List<DateTime> GenerateDateRangeForTimespan(TimeRange t)
-    {
-        string timeRange = t.Value;
-        int daysBack = timeRange switch { "1d" => 1, "5d" => 5, "1m" => 30, "3m" => 90, "1y" => 365, _ => 5 };
-        IEnumerable<DateTime> dates = Enumerable.Range(0, daysBack + 1).Select(i => DateTime.Now.AddDays(-i)).OrderBy(d => d);
-
-        // Skip weekends for multi-day ranges (markets are closed on Saturday/Sunday)
-        if (timeRange != "1d")
-            dates = dates.Where(d => d.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday);
-
-        return dates.ToList();
-    }
-
     private string GetImgLogo(string ticker)
     {
         return $"https://img.logo.dev/ticker/{ticker}?token=pk_fpJo-h0JQ6Kd9_FH96Ixrw";
@@ -493,5 +480,5 @@
 
     private string GetTimeRangeButtonClass(TimeRange t) => $"btn {(SelectedTimeRange == t ? "btn-primary" : "btn-tertiary")}";
     private List<ParticipantViewModel> GetPlayersByTotalValue() => Players.OrderByDescending(p => GetPlayerTotalValue(p)).ToList();
-    private decimal GetPlayerTotalValue(ParticipantViewModel player) => (decimal)player.Capital + player.Stocks.Sum(s => (decimal)s.ValueInTargetCurrency);
+    private decimal GetPlayerTotalValue(ParticipantViewModel player) => (decimal)player.Capital + (player.Stocks?.Sum(s => (decimal)s.ValueInTargetCurrency) ?? 0);
 }

@@ -95,8 +95,8 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] public double Amount { get; set; }
-    [Parameter] public double TotalPrice { get; set; }
+    [Parameter] public decimal Amount { get; set; }
+    [Parameter] public decimal TotalPrice { get; set; }
     [Parameter] public DateTime Date { get; set; } = DateTime.Now;
     [Parameter] public string? Ticker { get; set; }
     [Parameter] public string GameId { get; set; } = string.Empty;

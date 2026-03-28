@@ -75,7 +75,7 @@ public class PresentationService
 
         foreach (var transaction in transactions?.Where(t => t.Date.Date <= date.Date) ?? Enumerable.Empty<TransactionViewModel>())
         {
-            decimal transactionAmount = (decimal)(transaction.Amount * (double)transaction.PricePerUnit);
+            decimal transactionAmount = transaction.Amount * transaction.PricePerUnit;
 
             if (transaction.IsBuy)
                 cashSpent += transactionAmount;
@@ -198,7 +198,7 @@ public class PresentationService
                 .Select(g => new
                 {
                     Ticker = g.Key,
-                    Amount = g.Sum(t => t.IsBuy ? (decimal)t.Amount : -(decimal)t.Amount)
+                    Amount = g.Sum(t => t.IsBuy ? t.Amount : -t.Amount)
                 }) ?? Enumerable.Empty<dynamic>();
 
             foreach (var holding in holdingsOnDate)

@@ -5,12 +5,18 @@ namespace StockTrackingApi.Services;
 
 public class ExchangeRateService : IExchangeRateService
 {
+    private readonly HttpClient _httpClient;
+
+    public ExchangeRateService(HttpClient httpClient)
+    {
+        _httpClient = httpClient;
+    }
+
     public async Task<decimal> ExchangeRate(string fromCurrency, string targetCurrency)
     {
-        string url = $"https://api.frankfurter.dev/v1/1999-01-04?base={fromCurrency.ToUpper()}&symbols={targetCurrency.ToUpper()}";
+        string url = $"https://api.frankfurter.dev/v1/latest?base={fromCurrency.ToUpper()}&symbols={targetCurrency.ToUpper()}";
 
-        using var httpClient = new HttpClient();
-        var response = await httpClient.GetAsync(url);
+        var response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
 
         string jsonResponse = await response.Content.ReadAsStringAsync();
