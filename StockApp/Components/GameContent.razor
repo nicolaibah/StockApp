@@ -402,33 +402,18 @@
         var stockModel = Players.SelectMany(p => p.Stocks ?? new List<StockViewModel>())
                                 .FirstOrDefault(s => string.Equals(s.Ticker, ticker, StringComparison.OrdinalIgnoreCase));
 
-        var dates = GenerateDateRangeForTimespan(SelectedTimeRange);
-
-        if (stockModel != null)
+        if (stockModel?.HistoricalValues?.Any() == true)
         {
-            foreach (var date in dates)
-            {
-                // Find the latest historical price point on or before the date
-                var pricePoint = stockModel.HistoricalValues?
-                                 .Where(h => h.Date.Date <= date.Date)
-                                 .OrderByDescending(h => h.Date)
-                                 .FirstOrDefault();
-
-                decimal unitPriceInTarget = 0;
-
-                if (pricePoint != null)
+            // Use actual historical data points directly instead of synthetic dates
+            // to avoid placing the current value at dates with no historical data
+            SingleStockSeries = stockModel.HistoricalValues
+                .OrderBy(h => h.Date)
+                .Select(h => new ValuePoint
                 {
-                    unitPriceInTarget = pricePoint.Value * (stockModel?.CurrentExchangeRate ?? 1);
-                }
-                else
-                {
-                    // Fallback to current unit price if no historical point
-                    if (stockModel.Amount > 0)
-                        unitPriceInTarget = stockModel.ValueInTargetCurrency / stockModel.Amount;
-                }
-
-                SingleStockSeries.Add(new ValuePoint { Date = date, Value = unitPriceInTarget });
-            }
+                    Date = h.Date,
+                    Value = h.Value * (stockModel.CurrentExchangeRate)
+                })
+                .ToList();
         }
 
         await AfterUpdate();

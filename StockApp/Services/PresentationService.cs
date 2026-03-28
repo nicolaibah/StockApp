@@ -116,7 +116,7 @@ public class PresentationService
         var dates = GenerateDateRangeForTimespan(t);
         foreach (var player in _participants)
         {
-            player.PortfolioDateValues = await GetValueForDateTimes(player, dates);
+            player.PortfolioDateValues = await GetValueForDateTimes(player, dates, t);
         }
     }
 
@@ -175,7 +175,7 @@ public class PresentationService
         }
     }
 
-    private async Task<List<ValuePoint>> GetValueForDateTimes(ParticipantViewModel p, List<DateTime> dates, string targetCurrency = "DKK")
+    private async Task<List<ValuePoint>> GetValueForDateTimes(ParticipantViewModel p, List<DateTime> dates, TimeRange timeRange, string targetCurrency = "DKK")
     {
         var result = new List<ValuePoint>();
 
@@ -199,13 +199,9 @@ public class PresentationService
             {
                 if (holding.Amount <= 0) continue;
 
-                // Try to find cached history for this ticker
-                var key = _historicalDataCache.Keys.FirstOrDefault(k => k.StartsWith($"{holding.Ticker}_"));
-                CacheEntry entry = null;
-                if (!string.IsNullOrEmpty(key))
-                {
-                    _historicalDataCache.TryGetValue(key, out entry);
-                }
+                // Use the correct cache key for the current time range
+                string key = TickerToCacheKey(holding.Ticker, timeRange);
+                _historicalDataCache.TryGetValue(key, out CacheEntry entry);
 
                 var tickerHistory = entry?.Data;
 
@@ -215,14 +211,14 @@ public class PresentationService
                                                   .OrderByDescending(h => h.Date)
                                                   .FirstOrDefault();
 
-                    if (pricePoint != null)
-                    {
-                        // Use current exchange rate from stock model if available; historical FX not implemented
-                        var stockVM = p.Stocks?.FirstOrDefault(s => s.Ticker == holding.Ticker);
-                        decimal rate = stockVM?.CurrentExchangeRate ?? 1;
+                    // Fall back to the earliest available price when the date is before historical data starts
+                    pricePoint ??= tickerHistory.OrderBy(h => h.Date).First();
 
-                        portfolioValue += (pricePoint.Value * rate) * holding.Amount;
-                    }
+                    // Use current exchange rate from stock model if available; historical FX not implemented
+                    var stockVM = p.Stocks?.FirstOrDefault(s => s.Ticker == holding.Ticker);
+                    decimal rate = stockVM?.CurrentExchangeRate ?? 1;
+
+                    portfolioValue += (pricePoint.Value * rate) * holding.Amount;
                 }
             }
 
