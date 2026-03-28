@@ -101,20 +101,28 @@
                     </div>
 
                     <div style="height: 500px; position: relative;">
-                        @if (Players.Any(p => p.PortfolioDateValues?.Any() == true))
+                        @if (!string.IsNullOrEmpty(SelectedTickerOnChart) && SingleStockSeries?.Any() == true)
+                        {
+                            <ApexChart @ref="_chart" TItem="ValuePoint" Options="chartOptions" Height="500">
+                                <ApexPointSeries TItem="ValuePoint"
+                                                 Items="SingleStockSeries"
+                                                 Name="@($"{SelectedTickerOnChart} (per share)")"
+                                                 SeriesType="SeriesType.Area"
+                                                 XValue="@(e => e.Date)"
+                                                 YValue="@(e => e.Value)" />
+                            </ApexChart>
+                        }
+                        else if (Players.Any(p => p.PortfolioDateValues?.Any() == true))
                         {
                             <ApexChart @ref="_chart" TItem="ValuePoint" Options="chartOptions" Height="500">
                                 @foreach (var player in Players.OrderByDescending(p => p.Email == Email))
                                 {
-                                    @if (true)
-                                    {
-                                        <ApexPointSeries TItem="ValuePoint"
-                                                         Items="player.PortfolioDateValues"
-                                                         Name="@(player.Email == Email ? "Dig (Portefølje)" : player.Name)"
-                                                         SeriesType="SeriesType.Area"
-                                                         XValue="@(e => e.Date)"
-                                                         YValue="@(e => e.Value)" />
-                                    }
+                                    <ApexPointSeries TItem="ValuePoint"
+                                                     Items="player.PortfolioDateValues"
+                                                     Name="@(player.Email == Email ? "Dig (Portefølje)" : player.Name)"
+                                                     SeriesType="SeriesType.Area"
+                                                     XValue="@(e => e.Date)"
+                                                     YValue="@(e => e.Value)" />
                                 }
                             </ApexChart>
                         }
@@ -209,7 +217,7 @@
                                     var colorStyle = isPositive ? "color: #7dffa2;" : "color: #ffb4ab;";
                                     var prefix = isPositive ? "+" : "";
 
-                                    <div class="surface-container-lowest p-4 flex-between" style="border-radius: var(--radius-md); border-left: 4px solid @(isPositive ? "#7dffa2" : "#ffb4ab");">
+                                    <div class="surface-container-lowest p-4 flex-between" style="border-radius: var(--radius-md); border-left: 4px solid @(isPositive ? "#7dffa2" : "#ffb4ab"); cursor: pointer;" @onclick="async () => await ToggleStockSeries(stock.Ticker)">
                                         <div class="flex-center gap-3">
                                             <img src="@GetImgLogo(stock.Ticker)" style="width: 24px; height: 24px; border-radius: 4px;" />
                                             <div>
@@ -254,6 +262,8 @@
     private ParticipantViewModel DisplayPlayer = new(); // The user currently being viewed
     private bool HasLoaded;
     private TimeRange SelectedTimeRange = TimeRange.FiveDays;
+    private string SelectedTickerOnChart = string.Empty;
+    private List<ValuePoint> SingleStockSeries = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -282,13 +292,21 @@
 
         var sortedPlayers = Players.OrderByDescending(p => p.Email == Email).ToList();
 
-        foreach (var player in sortedPlayers)
+        if (!string.IsNullOrEmpty(SelectedTickerOnChart))
         {
-            if (player.Email == Email) colors.Add("#7dffa2");
-            else
+            // When showing a single stock, use a single highlight color
+            colors.Add("#7dffa2");
+        }
+        else
+        {
+            foreach (var player in sortedPlayers)
             {
-                colors.Add(colorPalette[colorIndex % colorPalette.Length]);
-                colorIndex++;
+                if (player.Email == Email) colors.Add("#7dffa2");
+                else
+                {
+                    colors.Add(colorPalette[colorIndex % colorPalette.Length]);
+                    colorIndex++;
+                }
             }
         }
 
@@ -353,6 +371,65 @@
 
         // Ask presentation service to update data for the new time range (history, current values, player series)
         await _presentation.UpdateForTimeRange(t);
+
+        // If a single stock is displayed on the chart, rebuild its series for the new time range
+        if (!string.IsNullOrEmpty(SelectedTickerOnChart))
+        {
+            var ticker = SelectedTickerOnChart;
+            SelectedTickerOnChart = string.Empty; // Clear so ToggleStockSeries selects rather than toggles off
+            await ToggleStockSeries(ticker);
+            return; // ToggleStockSeries already calls AfterUpdate
+        }
+
+        await AfterUpdate();
+    }
+
+    private async Task ToggleStockSeries(string ticker)
+    {
+        // Toggle off if already selected
+        if (!string.IsNullOrEmpty(SelectedTickerOnChart) && SelectedTickerOnChart == ticker)
+        {
+            SelectedTickerOnChart = string.Empty;
+            SingleStockSeries = new List<ValuePoint>();
+            await AfterUpdate();
+            return;
+        }
+
+        SelectedTickerOnChart = ticker;
+        SingleStockSeries = new List<ValuePoint>();
+
+        // Find a stock model that contains historical values for this ticker
+        var stockModel = Players.SelectMany(p => p.Stocks ?? new List<StockViewModel>())
+                                .FirstOrDefault(s => string.Equals(s.Ticker, ticker, StringComparison.OrdinalIgnoreCase));
+
+        var dates = GenerateDateRangeForTimespan(SelectedTimeRange);
+
+        if (stockModel != null)
+        {
+            foreach (var date in dates)
+            {
+                // Find the latest historical price point on or before the date
+                var pricePoint = stockModel.HistoricalValues?
+                                 .Where(h => h.Date.Date <= date.Date)
+                                 .OrderByDescending(h => h.Date)
+                                 .FirstOrDefault();
+
+                decimal unitPriceInTarget = 0;
+
+                if (pricePoint != null)
+                {
+                    unitPriceInTarget = pricePoint.Value * (stockModel?.CurrentExchangeRate ?? 1);
+                }
+                else
+                {
+                    // Fallback to current unit price if no historical point
+                    if (stockModel.Amount > 0)
+                        unitPriceInTarget = stockModel.ValueInTargetCurrency / stockModel.Amount;
+                }
+
+                SingleStockSeries.Add(new ValuePoint { Date = date, Value = unitPriceInTarget });
+            }
+        }
 
         await AfterUpdate();
     }
