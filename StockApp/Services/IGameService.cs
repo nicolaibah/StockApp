@@ -13,7 +13,7 @@ public interface IGameService
     Task<(bool Success, string? ErrorMessage)> AddTransaction(TransactionViewModel transaction, string gameId);
     Task<Quote> GetQuote(string ticker);
     Task<List<ValuePoint>> GetHistory(string ticker, TimeRange t);
-
+    Task InjectCash(string gameId, double amount);
     Task UpdatePlayerName(string participantId, string newName);
 
 }

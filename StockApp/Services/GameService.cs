@@ -69,4 +69,8 @@ public class GameService : IGameService
     {
         await _client.PostAsJsonAsync($"api/stock/player/update?participantId={participantId}", newName);
     }
+    public async Task InjectCash(string gameId, double amount)
+    {
+        await _client.PostAsJsonAsync($"api/stock/game/{gameId}/cash", amount);
+    }
 }
