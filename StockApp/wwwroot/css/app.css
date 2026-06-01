@@ -649,6 +649,24 @@ input.invalid {
     color: var(--error);
 }
 
+/* Row-level status styles: target tbody rows and their cells so
+   td rules with higher specificity don't override the status color. */
+.design-table tbody tr.status-positive {
+    background-color: rgba(125, 255, 162, 0.06); /* subtle green tint */
+    border-left: 4px solid rgba(125, 255, 162, 0.18);
+}
+.design-table tbody tr.status-positive td {
+    color: var(--secondary);
+}
+
+.design-table tbody tr.status-negative {
+    background-color: rgba(255, 180, 171, 0.06); /* subtle red tint */
+    border-left: 4px solid rgba(255, 180, 171, 0.18);
+}
+.design-table tbody tr.status-negative td {
+    color: var(--error);
+}
+
 /* ============================================================================
    13. Additional Utility Classes
    ============================================================================ */

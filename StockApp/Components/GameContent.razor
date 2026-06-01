@@ -1,6 +1,7 @@
 @using ApexCharts
 @using MudBlazor
 @using StockApp.Models
+@using StockApp.Pages
 @using StockApp.Services
 
 <style>
@@ -26,6 +27,7 @@
         <div class="mb-12">
             <h1 class="display-md mb-4">Scoreboard</h1>
             <p class="body-md text-primary">Oversigt over alle spilleres porteføljer - Klik på en spiller for at se deres beholdning</p>
+            <button @onclick="() => ViewTransactions()">Toggle Transaktionslog</button>
         </div>
 
         <div class="card mb-12">
@@ -65,8 +67,8 @@
                                         @($"{totalValue:N2} kr")
                                         @{
                                             // Optional: Show if the player is overall in profit or loss
-                                        // Use the game's starting capital as the baseline for gain/loss
-                                        var initial = (decimal)Value.StartCapital;
+                                            // Use the game's starting capital as the baseline for gain/loss
+                                            var initial = (decimal)Value.StartCapital;
                                             var totalGain = totalValue - initial;
                                             var gainColor = totalGain >= 0 ? "#7dffa2" : "#ffb4ab";
                                         }
@@ -137,70 +139,79 @@
                 <div style="flex: 1; min-width: 350px; display: flex; flex-direction: column; gap: 24px;">
 
                     <div class="card" style="position: relative; z-index: 2;">
-                        <div class="flex-between mb-4">
-                            <h2 class="headline-md">@(DisplayPlayer.Email == Email ? "Din Beholdning" : $"{DisplayPlayer.Name}s Beholdning")</h2>
-
-                            @if (DisplayPlayer.Email == Email)
-                            {
-                                <button class="btn btn-secondary btn-sm" @onclick="async () => await AddTransaction()" style="background-color: var(--secondary); color: var(--on-secondary);">+ Tilføj</button>
-                            }
-                        </div>
-
-                        @if (DisplayPlayer.Email != Email)
+                        @if (!IsViewingTransactions)
                         {
-                            <div class="mb-6">
-                                <button class="btn btn-tertiary btn-xs" @onclick="BackToMyHoldings" style="color: var(--primary);">
-                                    ← Gå tilbage til min beholdning
-                                </button>
+
+                            <div class="flex-between mb-4">
+                                <h2 class="headline-md">@(DisplayPlayer.Email == Email ? "Din Beholdning" : $"{DisplayPlayer.Name}s Beholdning")</h2>
+
+                                @if (DisplayPlayer.Email == Email)
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="async () => await AddTransaction()" style="background-color: var(--secondary); color: var(--on-secondary);">+ Tilføj</button>
+                                }
                             </div>
-                        }
 
-                        @if (DisplayPlayer?.Stocks?.Any() == true)
-                        {
-                            <div style="overflow-x: auto;">
-                                <table class="design-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Ticker</th>
-                                            <th>Antal</th>
-                                            <th>Værdi</th>
-                                            @if (DisplayPlayer.Email == Email)
-                                            {
-                                                <th style="text-align: right;">Handling</th>
-                                            }
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var stock in DisplayPlayer.Stocks)
-                                        {
-                                            <tr class="surface-container-lowest">
-                                                <td class="data-cell">
-                                                    <div class="flex-center gap-2" style="justify-content: flex-start;">
-                                                        <img src="@GetImgLogo(stock.Ticker)" style="width: 20px; height: 20px; border-radius: 4px;" />
-                                                        @stock.Ticker
-                                                    </div>
-                                                </td>
-                                                <td class="data-cell">@stock.Amount.ToString("N2")</td>
-                                                <td class="data-cell text-secondary">@($"{stock.ValueInTargetCurrency:N2}")</td>
+                            @if (DisplayPlayer.Email != Email)
+                            {
+                                <div class="mb-6">
+                                    <button class="btn btn-tertiary btn-xs" @onclick="BackToMyHoldings" style="color: var(--primary);">
+                                        ← Gå tilbage til min beholdning
+                                    </button>
+                                </div>
+                            }
 
+                            @if (DisplayPlayer?.Stocks?.Any() == true)
+                            {
+                                <div style="overflow-x: auto;">
+                                    <table class="design-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Ticker</th>
+                                                <th>Antal</th>
+                                                <th>Værdi</th>
                                                 @if (DisplayPlayer.Email == Email)
                                                 {
-                                                    <td style="text-align: right;">
-                                                        <button class="btn btn-tertiary" style="padding: 2px 8px;" @onclick="async () => await AddTransaction(stock)">Sælg</button>
-                                                    </td>
+                                                    <th style="text-align: right;">Handling</th>
                                                 }
                                             </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var stock in DisplayPlayer.Stocks)
+                                            {
+                                                <tr class="surface-container-lowest">
+                                                    <td class="data-cell">
+                                                        <div class="flex-center gap-2" style="justify-content: flex-start;">
+                                                            <img src="@GetImgLogo(stock.Ticker)" style="width: 20px; height: 20px; border-radius: 4px;" />
+                                                            @stock.Ticker
+                                                        </div>
+                                                    </td>
+                                                    <td class="data-cell">@stock.Amount.ToString("N2")</td>
+                                                    <td class="data-cell text-secondary">@($"{stock.ValueInTargetCurrency:N2}")</td>
+
+                                                    @if (DisplayPlayer.Email == Email)
+                                                    {
+                                                        <td style="text-align: right;">
+                                                            <button class="btn btn-tertiary" style="padding: 2px 8px;" @onclick="async () => await AddTransaction(stock)">Sælg</button>
+                                                        </td>
+                                                    }
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="body-sm" style="text-align: center; padding: var(--spacing-12) 0; color: rgba(214, 228, 249, 0.5);">
+                                    Ingen aktier fundet.
+                                </p>
+                            }
                         }
                         else
                         {
-                            <p class="body-sm" style="text-align: center; padding: var(--spacing-12) 0; color: rgba(214, 228, 249, 0.5);">
-                                Ingen aktier fundet.
-                            </p>
+                            <TransactionsView Players="@Players" />
                         }
+
                     </div>
 
                     <div class="card">
@@ -263,7 +274,7 @@
     private TimeRange SelectedTimeRange = TimeRange.FiveDays;
     private string SelectedTickerOnChart = string.Empty;
     private List<ValuePoint> SingleStockSeries = new();
-
+    private bool IsViewingTransactions = false;
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
@@ -438,6 +449,10 @@
         }
 
         await AfterUpdate();
+    }
+    private void ViewTransactions()
+    {
+        IsViewingTransactions = !IsViewingTransactions;
     }
 
     private async Task LoadData()

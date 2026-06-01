@@ -1,0 +1,53 @@
+﻿@using StockApp.Models
+<div class="flex-between mb-4">
+    <h2 class="headline-md">Transaktioner</h2>
+</div>
+
+
+<div style="overflow-x: auto;">
+    <table class="design-table">
+        <thead>
+            <tr>
+                <th>Dato</th>
+                <th>Ticker</th>
+                <th>Antal</th>
+                <th>Stk pris</th>
+                <th>Spiller</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in TransactionRows)
+            {
+                var transaction = row.Transaction;
+                <tr class="@($"surface-container-lowest {(transaction.IsBuy ? "status-positive" : "status-negative")}")">
+                    <td class="data-cell text-secondary">@($"{transaction.Date.ToString("dd-MM-yyyy")}")</td>
+                    <td class="data-cell">
+                        <div class="flex-center gap-2" style="justify-content: flex-start;">
+                            <img src="@GetImgLogo(transaction.Ticker)" style="width: 20px; height: 20px; border-radius: 4px;" />
+                            @transaction.Ticker
+                        </div>
+                    </td>
+                    <td class="data-cell">@transaction.Amount.ToString("N2")</td>
+                    <td class="data-cell text-secondary">@($"{transaction.PricePerUnit:N2}")</td>
+                    <td class="data-cell text-secondary">@row.PlayerName</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter] public List<ParticipantViewModel> Players { get; set; }
+    private List<(TransactionViewModel Transaction, string PlayerName)> TransactionRows =>
+        (Players ?? new List<ParticipantViewModel>())
+            .SelectMany(p => p.Transactions.Select(t => (Transaction: t, PlayerName: p.Name)))
+            .OrderByDescending(x => x.Transaction.Date)
+            .ToList();
+
+
+    private string GetImgLogo(string ticker)
+    {
+        return $"https://img.logo.dev/ticker/{ticker}?token=pk_fpJo-h0JQ6Kd9_FH96Ixrw";
+    }
+
+}
